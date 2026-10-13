@@ -19,11 +19,14 @@
 		{ wd: 0, label: 'Sonntag' }
 	];
 
-	let week = $state<Record<number, { from: string; to: string }[]>>({});
-	$effect(() => {
+	const toWeek = () => {
 		const w: Record<number, { from: string; to: string }[]> = {};
 		for (const d of DAYS) w[d.wd] = data.termine.hours.filter((h) => h.weekday === d.wd).map((h) => ({ from: h.from, to: h.to }));
-		week = w;
+		return w;
+	};
+	let week = $state(toWeek());
+	$effect(() => {
+		week = toWeek();
 	});
 	const json = $derived(JSON.stringify(DAYS.flatMap((d) => (week[d.wd] ?? []).map((r) => ({ weekday: d.wd, ...r })))));
 	const slots = $derived(

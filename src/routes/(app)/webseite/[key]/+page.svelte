@@ -14,9 +14,11 @@
 
 	// Bearbeitete Fassung – eine tiefe Kopie, damit „Verwerfen“ einfach neu lädt
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let v = $state<any>({});
+	const fresh = (): any => structuredClone(data.value);
+	let v = $state(fresh());
+	// nach Speichern/Verwerfen neu übernehmen
 	$effect(() => {
-		v = structuredClone(data.value);
+		v = fresh();
 	});
 	let version = $state(0);
 	const dirty = $derived(JSON.stringify(v) !== JSON.stringify(data.value));

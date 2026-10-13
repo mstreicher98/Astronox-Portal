@@ -32,9 +32,10 @@
 		price: moneyInput(i.unitPriceCents)
 	});
 
-	let rows = $state<Row[]>([]);
-	let taxMode = $state<'klein' | 'ust'>('klein');
-	let taxRate = $state('20');
+	const initial = () => ({ rows: data.items.map(toRow), taxMode: data.doc.taxMode, taxRate: String(data.doc.taxRate) });
+	let rows = $state<Row[]>(initial().rows);
+	let taxMode = $state<'klein' | 'ust'>(initial().taxMode);
+	let taxRate = $state(initial().taxRate);
 	$effect(() => {
 		rows = data.items.map(toRow);
 		taxMode = data.doc.taxMode;

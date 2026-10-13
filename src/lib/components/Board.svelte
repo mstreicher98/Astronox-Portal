@@ -35,9 +35,10 @@
 
 	let { cards }: { cards: Card[] } = $props();
 
-	let local = $state<Card[]>([]);
+	const copy = () => cards.map((c) => ({ ...c }));
+	let local = $state<Card[]>(copy());
 	$effect(() => {
-		local = cards.map((c) => ({ ...c }));
+		local = copy();
 	});
 
 	const columns = $derived(

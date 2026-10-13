@@ -3,9 +3,10 @@
 
 	/** Stammdaten eines Kunden – für „Neu“ und „Bearbeiten“ */
 	let { customer = null, withContact = false }: { customer?: Customer | null; withContact?: boolean } = $props();
-	let kind = $state<'firma' | 'privat'>('firma');
+	const initial = () => customer?.kind ?? 'firma';
+	let kind = $state<'firma' | 'privat'>(initial());
 	$effect(() => {
-		kind = customer?.kind ?? 'firma';
+		kind = initial();
 	});
 </script>
 

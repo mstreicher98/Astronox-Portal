@@ -7,9 +7,10 @@
 	import { submit } from '$lib/ui/form';
 
 	let { data } = $props();
-	let v = $state<AnfrageSettings>({ projectTypes: [], budgets: [], timeframes: [] });
+	const fresh = (): AnfrageSettings => structuredClone(data.anfrage);
+	let v = $state(fresh());
 	$effect(() => {
-		v = structuredClone(data.anfrage);
+		v = fresh();
 	});
 	const blank = (): Choice => ({ id: '', label: '', hint: '' });
 </script>
