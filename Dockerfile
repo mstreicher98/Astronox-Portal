@@ -1,10 +1,18 @@
-# ---------- Build ----------
-FROM node:24-alpine AS build
+# ---------- Build (läuft immer auf der Plattform des Build-Rechners) ----------
+# Das Ergebnis ist reines JavaScript und auf amd64 wie arm64 gleich. Unter
+# Emulation (QEMU) bleibt „vite build“ für arm64 hängen – daher nur einmal nativ bauen.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
+
+# ---------- Laufzeit-Pakete für die Zielplattform (sharp, libsql …) ----------
+FROM node:24-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 # ---------- Laufzeit ----------
 FROM node:24-alpine
@@ -18,7 +26,7 @@ ENV NODE_ENV=production \
     TZ=Europe/Vienna \
     BODY_SIZE_LIMIT=60M
 COPY --from=build --chown=node:node /app/build ./build
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/scripts ./scripts
 COPY --from=build --chown=node:node /app/package.json ./
