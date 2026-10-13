@@ -79,9 +79,11 @@
 <div class="shell">
 	<aside class="sidebar" aria-label="Hauptnavigation">
 		<a class="brand" href="/">
-			<span class="mark"><Mark size={30} /></span>
-			<span class="word">Astronox</span>
-			<span class="tag">Portal</span>
+			<span class="mark"><Mark size={32} /></span>
+			<span class="name">
+				<span class="word">Astronox</span>
+				<span class="tag">Portal</span>
+			</span>
 		</a>
 		<nav>
 			{#each nav as item, i (item.href)}
@@ -183,9 +185,18 @@
 	.brand {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: 0.65rem;
+		min-width: 0;
 		padding: 0.2rem 0.6rem 1.2rem;
 		text-decoration: none;
+	}
+
+	/* Schriftzug mit „Portal“ darunter – passt in die schmale Leiste */
+	.name {
+		display: grid;
+		gap: 0.3rem;
+		min-width: 0;
+		line-height: 1;
 	}
 
 	.mark {
@@ -203,16 +214,14 @@
 		font-stretch: 140%;
 		font-size: 1.08rem;
 		letter-spacing: 0.02em;
+		white-space: nowrap;
 	}
 
 	.tag {
-		padding: 0.08rem 0.4rem;
-		border: 1px solid rgb(var(--accent-rgb) / 0.4);
-		border-radius: 6px;
 		color: var(--accent);
 		font-family: var(--font-mono);
-		font-size: 0.58rem;
-		letter-spacing: 0.18em;
+		font-size: 0.6rem;
+		letter-spacing: 0.32em;
 		text-transform: uppercase;
 	}
 

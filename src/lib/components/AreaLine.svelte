@@ -65,12 +65,14 @@
 			<strong>{format(data[hover].value)}</strong>
 		</div>
 	{/if}
-	<table class="sr-only">
-		<caption>{label}</caption>
-		<tbody>
-			{#each data as d (d.label)}<tr><th>{d.label}</th><td>{format(d.value)}</td></tr>{/each}
-		</tbody>
-	</table>
+	<div class="sr-only">
+		<table>
+			<caption>{label}</caption>
+			<tbody>
+				{#each data as d (d.label)}<tr><th>{d.label}</th><td>{format(d.value)}</td></tr>{/each}
+			</tbody>
+		</table>
+	</div>
 </div>
 
 <style>
