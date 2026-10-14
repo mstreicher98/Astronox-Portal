@@ -149,7 +149,7 @@
 					<label class="field"><span>Bis <small>(optional)</small></span><input name="dueDate" type="date" /></label>
 					<div class="form-actions"><button class="btn ghost sm" type="submit">Übernehmen</button></div>
 				</form>
-				<p class="small faint">Vorlagen bearbeiten unter Einstellungen → Vorlagen.</p>
+				<p class="small faint">Vorlagen bearbeiten unter Einstellungen → Checklisten.</p>
 			</div>
 		{/if}
 	</div>

@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { MAIL_DEFAULTS, type MailSettings } from '$lib/shared/mails';
 import type { AnfrageSettings, FirmaSettings, ImapSettings, MonitorSettings, RechnungSettings, SmtpSettings, TermineSettings } from '$lib/shared/settings';
 import { db } from './db';
 import { settings } from './db/site';
@@ -16,6 +17,8 @@ export interface SettingsMap {
 	firma: FirmaSettings;
 	rechnung: RechnungSettings;
 	imap: ImapSettings;
+	/** Texte und Fußzeile der Mails – immer über mailSettings() lesen, damit Neues ergänzt wird */
+	mails: MailSettings;
 	monitor: MonitorSettings;
 	push: { publicKey: string; privateKey: string };
 	sync: { inquiryId: number; bookingId: number; cancelledAt: string };
@@ -60,6 +63,7 @@ export const DEFAULTS: { [K in keyof SettingsMap]: SettingsMap[K] } = {
 		invoiceIntro: 'vielen Dank für Ihren Auftrag. Ich erlaube mir, folgende Leistungen in Rechnung zu stellen:',
 		invoiceOutro: 'Bitte überweisen Sie den Betrag bis zum angegebenen Fälligkeitsdatum unter Angabe der Rechnungsnummer.'
 	},
+	mails: MAIL_DEFAULTS,
 	imap: { enabled: false, host: '', port: 993, secure: true, user: '', password: '', mailbox: 'INBOX', sentMailbox: 'Sent' },
 	monitor: { warnDays: 21 },
 	push: { publicKey: '', privateKey: '' },

@@ -1,77 +1,66 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { ListChecks, Mail, Plus } from '@lucide/svelte';
+	import { untrack } from 'svelte';
+	import { Globe, Mail, Palette, Plus } from '@lucide/svelte';
+	import logo from '$lib/assets/mail-logo.png?inline';
+	import { WEB_MAILS } from '$lib/shared/mails';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import Template from './Template.svelte';
+	import WebMail from './WebMail.svelte';
 
 	let { data } = $props();
+	// Fußzeile gilt sofort in allen Vorschauen
+	let footer = $state(untrack(() => data.mails.footer));
 	let newMail = $state(false);
-	let newList = $state(false);
+	// Inhalt (mit Vorschau) erst beim Aufklappen erzeugen
+	let open = $state<Record<string, boolean>>({});
+	const toggle = (key: string) => (e: Event) => (open[key] = (e.currentTarget as HTMLDetailsElement).open);
 </script>
 
-<svelte:head><title>Vorlagen – Einstellungen</title></svelte:head>
+<svelte:head><title>E-Mail-Texte – Einstellungen</title></svelte:head>
 
-<div class="card stack" use:glow>
-	<div class="spread">
-		<h2><Mail size={17} /> E-Mail-Vorlagen</h2>
-		<button class="btn ghost sm" type="button" onclick={() => (newMail = !newMail)}><Plus size={14} /> Vorlage</button>
-	</div>
-	<p class="small muted">Platzhalter: <code>{'{{anrede}}'}</code> (z. B. „Guten Tag Frau Muster,“), <code>{'{{name}}'}</code>, <code>{'{{projekt}}'}</code>, <code>{'{{nummer}}'}</code>, <code>{'{{titel}}'}</code>, <code>{'{{betrag}}'}</code>, <code>{'{{datum}}'}</code> (Fälligkeit bzw. Gültigkeit).</p>
-	{#if newMail}
-		<form method="POST" action="?/mail" class="stack tpl" use:enhance={submit({ reset: true, done: () => (newMail = false) })}>
-			<div class="form-grid">
-				<label class="field"><span>Name</span><input name="name" required /></label>
-				<label class="field"><span>Betreff</span><input name="subject" required /></label>
-				<label class="field full"><span>Text</span><textarea name="body" rows="8" required>{'{{anrede}}\n\n\n\nViele Grüße\nMatthias Streicher'}</textarea></label>
-			</div>
-			<div class="form-actions"><button class="btn sm" type="submit">Anlegen</button></div>
+<div class="mail-texts stack">
+	<div class="card stack" use:glow>
+		<h2><Palette size={17} /> Aussehen</h2>
+		<div class="logo"><img src={logo} alt="Astronox Development" width="260" height="32" /></div>
+		<p class="small muted">Das Logo steht im Kopf jeder Mail – von der Webseite und aus dem Portal. Es hängt eingebettet an der Mail und erscheint ohne „Bilder laden“.</p>
+		<form method="POST" action="?/fusszeile" class="stack" use:enhance={submit()}>
+			<label class="field">
+				<span>Fußzeile <small>(unter jeder Mail – E-Mail- und Webadressen werden klickbar)</small></span>
+				<textarea name="footer" rows="3" bind:value={footer}></textarea>
+			</label>
+			<div class="form-actions"><button class="btn sm" type="submit">Speichern</button></div>
 		</form>
-	{/if}
-	{#each data.mails as t (t.id)}
-		<details class="tpl">
-			<summary><strong>{t.name}</strong> <span class="faint small">{t.subject}</span></summary>
-			<form method="POST" action="?/mail" class="stack" use:enhance={submit()}>
-				<input type="hidden" name="id" value={t.id} />
-				<div class="form-grid">
-					<label class="field"><span>Name</span><input name="name" required value={t.name} /></label>
-					<label class="field"><span>Betreff</span><input name="subject" required value={t.subject} /></label>
-					<label class="field full"><span>Text</span><textarea name="body" rows="9" required>{t.body}</textarea></label>
-				</div>
-				<div class="form-actions">
-					{#if !['angebot', 'rechnung', 'mahnung'].includes(t.key ?? '')}<button class="btn danger sm" type="submit" formaction="?/mail_loeschen">Löschen</button>{/if}
-					<button class="btn sm" type="submit">Speichern</button>
-				</div>
-			</form>
-		</details>
-	{/each}
-</div>
+	</div>
 
-<div class="card stack" use:glow>
-	<div class="spread">
-		<h2><ListChecks size={17} /> Checklisten für Projekte</h2>
-		<button class="btn ghost sm" type="button" onclick={() => (newList = !newList)}><Plus size={14} /> Checkliste</button>
+	<div class="card stack" use:glow>
+		<h2><Globe size={17} /> Automatische Mails der Webseite</h2>
+		<p class="small muted">Verschickt die Webseite selbst bei Projektanfragen, Terminbuchungen und Absagen. Änderungen gelten ab der nächsten Mail.</p>
+		{#each WEB_MAILS as m (m.key)}
+			<details class="tpl" ontoggle={toggle(m.key)}>
+				<summary><strong>{m.label}</strong> <span class="faint small">{data.mails.web[m.key].subject}</span></summary>
+				{#if open[m.key]}<WebMail mail={m} text={data.mails.web[m.key]} ablauf={data.mails.ablauf} {footer} />{/if}
+			</details>
+		{/each}
 	</div>
-	{#if newList}
-		<form method="POST" action="?/liste" class="stack tpl" use:enhance={submit({ reset: true, done: () => (newList = false) })}>
-			<label class="field"><span>Name</span><input name="name" required /></label>
-			<label class="field"><span>Punkte <small>(einer pro Zeile)</small></span><textarea name="items" rows="8" required></textarea></label>
-			<div class="form-actions"><button class="btn sm" type="submit">Anlegen</button></div>
-		</form>
-	{/if}
-	{#each data.lists as l (l.id)}
-		<details class="tpl">
-			<summary><strong>{l.name}</strong> <span class="faint small">{l.items.length} Punkte</span></summary>
-			<form method="POST" action="?/liste" class="stack" use:enhance={submit()}>
-				<input type="hidden" name="id" value={l.id} />
-				<label class="field"><span>Name</span><input name="name" required value={l.name} /></label>
-				<label class="field"><span>Punkte <small>(einer pro Zeile)</small></span><textarea name="items" rows={Math.min(16, l.items.length + 2)}>{l.items.join('\n')}</textarea></label>
-				<div class="form-actions">
-					<button class="btn danger sm" type="submit" formaction="?/liste_loeschen">Löschen</button>
-					<button class="btn sm" type="submit">Speichern</button>
-				</div>
-			</form>
-		</details>
-	{/each}
+
+	<div class="card stack" use:glow>
+		<div class="spread">
+			<h2><Mail size={17} /> Vorlagen im Portal</h2>
+			<button class="btn ghost sm" type="button" onclick={() => (newMail = !newMail)}><Plus size={14} /> Vorlage</button>
+		</div>
+		<p class="small muted">Für Angebote, Rechnungen, Erinnerungen, Terminabsagen und beim Schreiben einer Mail im Portal. Vor dem Senden lässt sich jede Mail noch anpassen.</p>
+		{#if newMail}
+			<div class="tpl"><Template {footer} ondone={() => (newMail = false)} /></div>
+		{/if}
+		{#each data.templates as t (t.id)}
+			<details class="tpl" ontoggle={toggle(`t${t.id}`)}>
+				<summary><strong>{t.name}</strong> <span class="faint small">{t.subject}</span></summary>
+				{#if open[`t${t.id}`]}<Template {t} fixed={!!t.key && data.fixed.includes(t.key)} {footer} />{/if}
+			</details>
+		{/each}
+	</div>
 </div>
 
 <style>
@@ -81,12 +70,19 @@
 		gap: 0.5rem;
 	}
 
-	code {
-		padding: 0.05rem 0.3rem;
-		border-radius: 5px;
-		background: var(--nebula-soft);
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
+	.logo {
+		justify-self: start;
+		padding: 1rem 1.4rem;
+		border-radius: 12px;
+		background: #0c1430;
+		border: 1px solid var(--line-soft);
+	}
+
+	.logo img {
+		display: block;
+		width: 260px;
+		max-width: 100%;
+		height: auto;
 	}
 
 	.tpl {
@@ -99,11 +95,47 @@
 	.tpl summary {
 		display: flex;
 		align-items: baseline;
-		gap: 0.6rem;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.6rem;
 		cursor: pointer;
 	}
 
 	.tpl[open] summary {
 		margin-bottom: 0.8rem;
+	}
+
+	/* Editor links, Vorschau rechts – auf schmalen Bildschirmen untereinander */
+	.mail-texts :global(.pair) {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+
+	.mail-texts :global(fieldset) {
+		margin: 0;
+		padding: 0.8rem 0.9rem;
+		border: 1px solid var(--line-soft);
+		border-radius: 12px;
+	}
+
+	.mail-texts :global(legend) {
+		padding: 0 0.3rem;
+		color: var(--dust);
+		font-size: 0.82rem;
+	}
+
+	.mail-texts :global(code) {
+		padding: 0.05rem 0.3rem;
+		border-radius: 5px;
+		background: var(--nebula-soft);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+	}
+
+	@media (max-width: 1250px) {
+		.mail-texts :global(.pair) {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

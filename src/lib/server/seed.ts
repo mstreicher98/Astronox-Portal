@@ -4,8 +4,11 @@ import { checklistTemplates, mailTemplates } from './db/schema';
 
 /**
  * Startwerte beim ersten Start: Mail-Vorlagen und eine Launch-Checkliste.
- * Platzhalter in Vorlagen: {{anrede}}, {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}, {{zeitraum}}.
+ * Platzhalter in Vorlagen: {{anrede}}, {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}, {{zeitraum}}, {{grund}}.
  */
+
+/** Vorlagen, die das Portal selbst verschickt – lassen sich ändern, aber nicht löschen */
+export const FIXED_TEMPLATES = ['angebot', 'rechnung', 'mahnung', 'vertragsrechnung', 'terminabsage'];
 
 const TEMPLATES = [
 	{
@@ -70,6 +73,21 @@ Viele Grüße
 Matthias Streicher`
 	},
 	{
+		key: 'terminabsage',
+		name: 'Termin absagen',
+		subject: 'Ihr Erstgespräch muss leider entfallen',
+		body: `{{anrede}}
+
+leider muss ich unser Erstgespräch am {{datum}} Uhr absagen.
+
+{{grund}}
+
+Bitte buchen Sie einfach einen neuen Termin unter https://astronox.dev/#kontakt – oder antworten Sie auf diese Mail, dann finden wir gemeinsam einen.
+
+Viele Grüße
+Matthias Streicher`
+	},
+	{
 		key: 'abnahme',
 		name: 'Bitte um Abnahme',
 		subject: 'Ihr Projekt ist bereit zur Abnahme: {{projekt}}',
@@ -104,8 +122,10 @@ export async function seedPortal() {
 	if (!anyTemplate) await db.insert(mailTemplates).values(TEMPLATES);
 	else {
 		// später hinzugekommene Vorlagen, die das Portal selbst braucht
-		const [contract] = await db.select({ id: mailTemplates.id }).from(mailTemplates).where(eq(mailTemplates.key, 'vertragsrechnung')).limit(1);
-		if (!contract) await db.insert(mailTemplates).values(TEMPLATES.filter((t) => t.key === 'vertragsrechnung'));
+		for (const key of ['vertragsrechnung', 'terminabsage']) {
+			const [found] = await db.select({ id: mailTemplates.id }).from(mailTemplates).where(eq(mailTemplates.key, key)).limit(1);
+			if (!found) await db.insert(mailTemplates).values(TEMPLATES.filter((t) => t.key === key));
+		}
 	}
 	const [anyList] = await db.select({ id: checklistTemplates.id }).from(checklistTemplates).limit(1);
 	if (!anyList) {

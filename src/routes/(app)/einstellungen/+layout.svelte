@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Bell, Building2, CalendarClock, DatabaseBackup, FileStack, Mail, MessageSquareText, ShieldCheck } from '@lucide/svelte';
+	import { Bell, Building2, CalendarClock, DatabaseBackup, ListChecks, Mail, MailOpen, MessageSquareText, ShieldCheck } from '@lucide/svelte';
 
 	let { children } = $props();
 	const items = [
@@ -8,7 +8,8 @@
 		{ href: '/einstellungen/termine', label: 'Termine', icon: CalendarClock },
 		{ href: '/einstellungen/anfrage', label: 'Projektanfrage', icon: MessageSquareText },
 		{ href: '/einstellungen/email', label: 'E-Mail', icon: Mail },
-		{ href: '/einstellungen/vorlagen', label: 'Vorlagen', icon: FileStack },
+		{ href: '/einstellungen/vorlagen', label: 'E-Mail-Texte', icon: MailOpen },
+		{ href: '/einstellungen/checklisten', label: 'Checklisten', icon: ListChecks },
 		{ href: '/einstellungen/benachrichtigungen', label: 'Benachrichtigungen', icon: Bell },
 		{ href: '/einstellungen/sicherheit', label: 'Sicherheit', icon: ShieldCheck },
 		{ href: '/einstellungen/sicherungen', label: 'Sicherungen', icon: DatabaseBackup }

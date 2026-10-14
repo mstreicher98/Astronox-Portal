@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
+import { LOGO_CID, mailLayout, mailSettings, paragraphsHtml } from '$lib/shared/mails';
 import { logActivity } from './activity';
 import { db } from './db';
 import { mailMessages } from './db/schema';
+import { LOGO_PNG } from './mail-logo';
 import { decrypt } from './secret';
 import { getSetting } from './settings';
 
 /**
  * E-Mails aus dem Portal über denselben SMTP-Zugang wie die Webseite
- * (Einstellungen → E-Mail). Jede Mail landet im Verlauf beim Kunden und –
- * wenn IMAP eingerichtet ist – im Ordner „Gesendet“ des Postfachs.
+ * (Einstellungen → E-Mail). Layout, Logo und Fußzeile wie bei den Mails der
+ * Webseite (Einstellungen → E-Mail-Texte). Jede Mail landet im Verlauf beim
+ * Kunden und – wenn IMAP eingerichtet ist – im Ordner „Gesendet“ des Postfachs.
  */
 
 export interface OutgoingMail {
@@ -69,28 +72,20 @@ export async function verifySmtp(): Promise<string | null> {
 	}
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+/** Alle Mail-Texte samt Fußzeile (Einstellungen → E-Mail-Texte) */
+export async function getMailSettings() {
+	return mailSettings(await getSetting('mails'));
+}
 
-/** Gleiches schlichtes Layout wie die Mails der Webseite */
-export function mailHtml(text: string): string {
-	const linkify = (s: string) => s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#3b4bd8">$1</a>');
-	const body = text
-		.trim()
-		.split(/\n{2,}/)
-		.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${linkify(esc(p)).replace(/\n/g, '<br>')}</p>`)
-		.join('');
-	return `<!doctype html><html lang="de"><body style="margin:0;background:#eef0f6;font-family:Helvetica,Arial,sans-serif;color:#141a33">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 12px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden">
-<tr><td style="background:#0c1430;padding:22px 28px;color:#f3eee2;font-size:15px;letter-spacing:.18em;font-weight:bold">ASTRONOX <span style="color:#f472b6">&#10022;</span></td></tr>
-<tr><td style="padding:28px 28px 12px">${body}</td></tr>
-<tr><td style="padding:16px 28px 28px;color:#5d6485;font-size:13px;line-height:1.5">Astronox Development · Matthias Streicher<br><a href="mailto:office@astronox.dev" style="color:#5d6485">office@astronox.dev</a> · <a href="https://astronox.dev" style="color:#5d6485">astronox.dev</a></td></tr>
-</table></td></tr></table></body></html>`;
+/** Gleiches Layout wie die Mails der Webseite: Logo, Absätze, Fußzeile */
+export function mailHtml(text: string, footer: string, logo = `cid:${LOGO_CID}`): string {
+	return mailLayout(paragraphsHtml(text), { footer, logo });
 }
 
 export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: number; error?: string }> {
 	const tp = await transporter();
 	const smtp = await getSetting('smtp');
+	const { footer } = await getMailSettings();
 	const messageId = `<${randomUUID()}@astronox.dev>`;
 	const now = new Date();
 	const options = {
@@ -99,12 +94,13 @@ export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: numb
 		cc: m.cc || undefined,
 		subject: m.subject,
 		text: m.text,
-		html: mailHtml(m.text),
+		html: mailHtml(m.text, footer),
 		messageId,
 		date: now,
 		inReplyTo: m.inReplyTo || undefined,
 		references: m.references || m.inReplyTo || undefined,
-		attachments: m.attachments
+		// Logo im Kopf als eingebettetes Bild – wird ohne Nachladen angezeigt
+		attachments: [{ filename: 'astronox.png', content: LOGO_PNG, contentType: 'image/png', cid: LOGO_CID, contentDisposition: 'inline' as const }, ...(m.attachments ?? [])]
 	};
 
 	let status: 'gesendet' | 'fehler' = 'gesendet';

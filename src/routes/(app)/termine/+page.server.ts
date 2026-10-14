@@ -3,10 +3,10 @@ import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { dateTime } from '$lib/shared/format';
 import { logActivity } from '$lib/server/activity';
 import { db } from '$lib/server/db';
-import { projects } from '$lib/server/db/schema';
+import { mailTemplates, projects } from '$lib/server/db/schema';
 import { bookings } from '$lib/server/db/site';
 import { act, bad } from '$lib/server/forms';
-import { greeting, sendMail } from '$lib/server/mail';
+import { fillTemplate, greeting, sendMail } from '$lib/server/mail';
 import { getSetting, setSetting } from '$lib/server/settings';
 import { cancelledHere } from '$lib/server/sync';
 import type { Actions, PageServerLoad } from './$types';
@@ -48,10 +48,13 @@ export const actions: Actions = {
 		const reason = f.str('reason', 2000);
 		const [p] = await db.select({ id: projects.id, customerId: projects.customerId }).from(projects).where(eq(projects.bookingId, b.id));
 		if (f.bool('notify')) {
+			// Vorlage „Termin absagen“ (Einstellungen → E-Mail-Texte)
+			const [tpl] = await db.select().from(mailTemplates).where(eq(mailTemplates.key, 'terminabsage')).limit(1);
+			const values = { anrede: greeting(b.name), name: b.name, datum: dateTime(b.startsAt), grund: reason ?? '' };
 			await sendMail({
 				to: b.email,
-				subject: 'Ihr Erstgespräch muss leider entfallen',
-				text: `${greeting(b.name)}\n\nleider muss ich unser Erstgespräch am ${dateTime(b.startsAt)} Uhr absagen.${reason ? `\n\n${reason}` : ''}\n\nBitte buchen Sie einfach einen neuen Termin unter https://astronox.dev/#kontakt – oder antworten Sie auf diese Mail, dann finden wir gemeinsam einen.\n\nViele Grüße\nMatthias Streicher`,
+				subject: fillTemplate(tpl?.subject ?? 'Ihr Erstgespräch muss leider entfallen', values),
+				text: fillTemplate(tpl?.body ?? '{{anrede}}\n\nleider muss ich unser Erstgespräch am {{datum}} Uhr absagen.\n\n{{grund}}\n\nViele Grüße\nMatthias Streicher', values).replace(/\n{3,}/g, '\n\n'),
 				customerId: p?.customerId,
 				projectId: p?.id
 			});
