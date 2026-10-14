@@ -8,7 +8,8 @@ describe('documentNumber', () => {
 	});
 
 	it('füllt mit Nullen auf', () => {
-		expect(documentNumber('RE{JJ} {NR}', 2026, 7, 3)).toBe('RE26 007');
+		expect(documentNumber('RE{JJ} {NR}', 2026, 1, 4)).toBe('RE26 0001');
+		expect(documentNumber('AN{JJ} {NR}', 2026, 12345, 4)).toBe('AN26 12345');
 	});
 
 	it('hängt die Nummer an, wenn {NR} fehlt', () => {

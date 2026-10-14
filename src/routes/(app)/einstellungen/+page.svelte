@@ -65,7 +65,7 @@
 		<label class="field"><span>Rechnungsnummer <small>– Format</small></span><input name="invoicePrefix" bind:value={invoiceFormat} /><small class="hint">z. B. {documentNumber(invoiceFormat, year, 1, digits)}, {documentNumber(invoiceFormat, year, 2, digits)} …</small></label>
 		<label class="field"><span>Angebotsnummer <small>– Format</small></span><input name="quotePrefix" bind:value={quoteFormat} /><small class="hint">z. B. {documentNumber(quoteFormat, year, 1, digits)}, {documentNumber(quoteFormat, year, 2, digits)} …</small></label>
 		<p class="small muted full">{'{JJ}'} = Jahr zweistellig, {'{JJJJ}'} = Jahr, {'{NR}'} = laufende Nummer. Sie beginnt jedes Jahr wieder bei 1.</p>
-		<label class="field"><span>Mindeststellen der Nummer</span><input name="digits" type="number" min="1" max="6" bind:value={digits} /><small class="hint">1 = ohne führende Nullen, 3 = 001</small></label>
+		<label class="field"><span>Mindeststellen der Nummer</span><input name="digits" type="number" min="1" max="6" bind:value={digits} /><small class="hint">4 = 0001, 0002 … · 1 = ohne führende Nullen</small></label>
 		<label class="field"><span>Standard-Stundensatz (€)</span><input name="hourlyRate" inputmode="decimal" value={moneyInput(r.hourlyRateCents)} /></label>
 		<label class="field"><span>Zahlungsziel (Tage)</span><input name="paymentDays" type="number" min="0" value={r.paymentDays} /></label>
 		<label class="field"><span>Angebote gültig (Tage)</span><input name="quoteValidDays" type="number" min="1" value={r.quoteValidDays} /></label>

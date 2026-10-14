@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { ArrowDown, ArrowUp, Ban, CircleCheck, CircleX, Copy, Download, FileCheck2, GripVertical, Lock, Mail, Package, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Ban, CircleCheck, CircleX, Copy, Download, FileCheck2, GripVertical, Lock, Mail, Package, Pencil, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from '@lucide/svelte';
 	import { flip } from 'svelte/animate';
 	import { fly, slide } from 'svelte/transition';
 	import Compose from '$lib/components/Compose.svelte';
@@ -62,6 +62,25 @@
 	let mailOpen = $state(false);
 	let mailTemplate = $state('');
 	let pkgOpen = $state(false);
+
+	const canEdit = $derived(!draft && !d.cancelsId && d.status !== 'storniert');
+	const editDetail = $derived(
+		[
+			`Der Beleg wird wieder zum Entwurf und behält die Nummer ${d.number}. Danach erneut festschreiben.`,
+			d.sentAt ? `Er wurde am ${dateTime(d.sentAt)} verschickt – diese Fassung bleibt archiviert. Schick dem Kunden danach die berichtigte Fassung.` : '',
+			d.status === 'bezahlt' ? 'Die Zahlung wird zurückgesetzt.' : '',
+			d.status === 'angenommen' || d.status === 'abgelehnt' ? `„${DOC_STATUS[d.status].label}“ wird zurückgesetzt.` : ''
+		]
+			.filter(Boolean)
+			.join(' ')
+	);
+	const deleteDetail = $derived(
+		d.type === 'angebot'
+			? 'Das Angebot und sein PDF werden endgültig gelöscht.'
+			: d.number
+				? `Nur löschen, wenn die Rechnung nie beim Kunden war. Ist ${d.number} die letzte Nummer, wird sie wieder frei – sonst bleibt eine Lücke, die im Verlauf vermerkt ist.`
+				: 'Der Entwurf wird endgültig gelöscht.'
+	);
 
 	const overdue = $derived(d.type === 'rechnung' && d.status === 'offen' && !!d.dueDate && d.dueDate < today());
 	function openMail(kind: 'beleg' | 'mahnung') {
@@ -191,7 +210,7 @@
 					</div>
 
 					<div class="form-actions sticky-actions">
-						<button class="btn danger" type="submit" formaction="?/loeschen" formnovalidate><Trash2 size={15} /> Entwurf löschen</button>
+						{#if !data.deleteBlocker}<button class="btn danger" type="submit" form="beleg-loeschen"><Trash2 size={15} /> {d.number ? 'Löschen' : 'Entwurf löschen'}</button>{/if}
 						<button class="btn ghost" type="submit">Speichern</button>
 					</div>
 				</form>
@@ -201,7 +220,7 @@
 						<h2><Lock size={15} /> Festgeschrieben</h2>
 						<span class="small faint">{dateTime(d.finalizedAt)}</span>
 					</div>
-					<p class="small muted">Dieser Beleg ist unveränderlich. {d.type === 'rechnung' && !d.cancelsId ? 'Korrekturen gehen über eine Stornorechnung.' : ''}</p>
+					<p class="small muted">{canEdit ? 'Zum Ändern rechts auf „Bearbeiten“ – der Beleg wird wieder zum Entwurf und behält seine Nummer.' : 'Dieser Beleg bleibt unverändert aufbewahrt.'}</p>
 					<div class="table-wrap">
 						<table class="table">
 							<thead><tr><th>Pos.</th><th>Leistung</th><th class="right">Menge</th><th class="right">Preis</th><th class="right">Gesamt</th></tr></thead>
@@ -229,8 +248,10 @@
 		<aside class="stack side">
 			<div class="card stack status" use:glow>
 				{#if draft}
-					<p class="small muted">Prüfe die Vorschau. Beim Festschreiben bekommt der Beleg die nächste Nummer und lässt sich danach nicht mehr ändern.</p>
-					<form method="POST" action="?/festschreiben" use:enhance={submit({ confirm: `${label} jetzt festschreiben?`, confirmDetail: 'Bitte vorher speichern. Danach sind Änderungen nicht mehr möglich.', done: () => (pdfVersion = Date.now()) })}>
+					<p class="small muted">
+						{#if d.number}Wieder geöffnet. Beim Festschreiben behält der Beleg die Nummer {d.number}, das PDF wird neu erstellt.{:else}Prüfe die Vorschau. Beim Festschreiben bekommt der Beleg die nächste Nummer.{/if}
+					</p>
+					<form method="POST" action="?/festschreiben" use:enhance={submit({ confirm: `${label} jetzt festschreiben?`, confirmDetail: 'Bitte vorher speichern. Danach lässt er sich nur noch über „Bearbeiten“ ändern.', done: () => (pdfVersion = Date.now()) })}>
 						<button class="btn wide" type="submit"><FileCheck2 size={16} /> Festschreiben</button>
 					</form>
 				{:else}
@@ -272,6 +293,19 @@
 							<button class="btn quiet wide sm" type="submit"><Ban size={14} /> Stornieren</button>
 						</form>
 					{/if}
+					{#if canEdit || !data.deleteBlocker}
+						<div class="row">
+							{#if canEdit}
+								<form method="POST" action="?/bearbeiten" style="flex: 1" use:enhance={submit({ confirm: `${label} ${d.number} bearbeiten?`, confirmDetail: editDetail, done: () => (pdfVersion = Date.now()) })}>
+									<button class="btn quiet wide sm" type="submit"><Pencil size={14} /> Bearbeiten</button>
+								</form>
+							{/if}
+							{#if !data.deleteBlocker}
+								<button class="btn quiet wide sm del" type="submit" form="beleg-loeschen" style="flex: 1"><Trash2 size={14} /> Löschen</button>
+							{/if}
+						</div>
+					{/if}
+					{#if data.deleteBlocker && canEdit}<p class="small faint">{data.deleteBlocker}</p>{/if}
 				{/if}
 
 				{#if data.links.quote || data.links.invoices.length || data.links.cancels || data.links.cancelledBy}
@@ -300,6 +334,8 @@
 	</div>
 </div>
 
+<form id="beleg-loeschen" method="POST" action="?/loeschen" hidden use:enhance={submit({ confirm: d.number ? `${label} ${d.number} löschen?` : 'Entwurf löschen?', confirmDetail: deleteDetail })}></form>
+
 <Compose
 	bind:open={mailOpen}
 	to={data.recipient?.email ?? data.customer.email ?? ''}
@@ -312,6 +348,10 @@
 />
 
 <style>
+	.del:hover {
+		color: var(--danger);
+	}
+
 	.layout {
 		display: grid;
 		grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.75fr);

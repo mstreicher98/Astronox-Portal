@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { asc, eq, isNull } from 'drizzle-orm';
 import { money, today } from '$lib/shared/format';
 import type { SiteContent } from '$lib/shared/site';
 import { logActivity } from '$lib/server/activity';
@@ -7,7 +7,7 @@ import { primaryRecipient } from '$lib/server/customers';
 import { db } from '$lib/server/db';
 import { customers, documentItems, documents, mailMessages, projects } from '$lib/server/db/schema';
 import { siteContent } from '$lib/server/db/site';
-import { cancelInvoice, createDocument, finalize, invoiceFromQuote, loadDocument, recalc, typeLabel } from '$lib/server/documents';
+import { cancelInvoice, createDocument, deleteBlocker, deleteDocument, finalize, invoiceFromQuote, loadDocument, recalc, reopenDocument, typeLabel } from '$lib/server/documents';
 import { act, bad } from '$lib/server/forms';
 import { advanceTo } from '$lib/server/projects';
 import type { Actions, PageServerLoad } from './$types';
@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		cancels: d.cancelsId ? related.find((r) => r.id === d.cancelsId) : null,
 		cancelledBy: related.find((r) => r.cancelsId === d.id) ?? null
 	};
-	return { doc: d, items, customer, customers: allCustomers, projects: customerProjects, recipient, links, mails, packages: pkgs };
+	return { doc: d, items, customer, customers: allCustomers, projects: customerProjects, recipient, links, mails, packages: pkgs, deleteBlocker: deleteBlocker(d) };
 };
 
 interface ItemInput {
@@ -71,7 +71,7 @@ interface ItemInput {
 export const actions: Actions = {
 	speichern: act(async ({ params }, f) => {
 		const { doc: d } = await doc(params.id);
-		if (d.status !== 'entwurf') bad('Festgeschriebene Belege lassen sich nicht mehr ändern.');
+		if (d.status !== 'entwurf') bad('Bitte den Beleg zuerst über „Bearbeiten“ wieder öffnen.');
 		let items: ItemInput[];
 		try {
 			items = JSON.parse(f.str('items', 200_000) ?? '[]');
@@ -186,10 +186,23 @@ export const actions: Actions = {
 		redirect(303, `/rechnungen/${id}`);
 	}),
 
+	bearbeiten: act(async ({ params }) => {
+		const { doc: d } = await doc(params.id);
+		try {
+			await reopenDocument(d.id);
+		} catch (err) {
+			return bad((err as Error).message);
+		}
+		return { message: `${typeLabel(d.type)} ${d.number} ist wieder ein Entwurf` };
+	}),
+
 	loeschen: act(async ({ params }) => {
 		const { doc: d } = await doc(params.id);
-		if (d.status !== 'entwurf') bad('Festgeschriebene Belege werden aufbewahrt – Rechnungen bitte stornieren.');
-		await db.delete(documents).where(and(eq(documents.id, d.id), eq(documents.status, 'entwurf')));
+		try {
+			await deleteDocument(d.id);
+		} catch (err) {
+			return bad((err as Error).message);
+		}
 		redirect(303, `/rechnungen?typ=${d.type}`);
 	})
 };

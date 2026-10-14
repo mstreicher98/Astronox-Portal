@@ -51,7 +51,7 @@ export const DEFAULTS: { [K in keyof SettingsMap]: SettingsMap[K] } = {
 		kleinText: 'Umsatzsteuerbefreit – Kleinunternehmer gem. § 6 Abs. 1 Z 27 UStG.',
 		invoicePrefix: 'RE{JJ} {NR}',
 		quotePrefix: 'AN{JJ} {NR}',
-		digits: 1,
+		digits: 4,
 		paymentDays: 14,
 		quoteValidDays: 30,
 		hourlyRateCents: 8000,

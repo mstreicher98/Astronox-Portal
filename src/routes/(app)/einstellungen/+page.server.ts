@@ -33,7 +33,7 @@ export const actions: Actions = {
 			kleinText: f.str('kleinText', 300) ?? cur.kleinText,
 			invoicePrefix: f.str('invoicePrefix', 30) ?? '',
 			quotePrefix: f.str('quotePrefix', 30) ?? '',
-			digits: Math.min(6, Math.max(1, f.int('digits') ?? 3)),
+			digits: Math.min(6, Math.max(1, f.int('digits') ?? 4)),
 			paymentDays: Math.min(120, Math.max(0, f.int('paymentDays') ?? 14)),
 			quoteValidDays: Math.min(365, Math.max(1, f.int('quoteValidDays') ?? 30)),
 			hourlyRateCents: f.money('hourlyRate') ?? cur.hourlyRateCents,

@@ -378,6 +378,9 @@ export const documents = sqliteTable(
 		type: text('type', { enum: ['angebot', 'rechnung'] }).notNull(),
 		/** fortlaufend, wird erst beim Festschreiben vergeben */
 		number: text('number').unique(),
+		/** Nummernkreis und laufende Nummer darin (z. B. „rechnung-2026“ / 14) – zum Freigeben beim Löschen */
+		seqKey: text('seq_key'),
+		seq: integer('seq'),
 		/** entwurf · offen (festgeschrieben/versendet) · angenommen · abgelehnt · bezahlt · storniert */
 		status: text('status', { enum: ['entwurf', 'offen', 'angenommen', 'abgelehnt', 'bezahlt', 'storniert'] })
 			.notNull()
@@ -439,7 +442,9 @@ export const documentItems = sqliteTable('document_items', {
 /** Nummernkreise, z. B. „rechnung-2026“ → 14 */
 export const sequences = sqliteTable('sequences', {
 	key: text('key').primaryKey(),
-	last: integer('last').notNull().default(0)
+	last: integer('last').notNull().default(0),
+	/** höchste Nummer eines gelöschten, aber schon verschickten Belegs – wird nie wieder vergeben */
+	floor: integer('floor').notNull().default(0)
 });
 
 /* ------------------------------------------------------------------ E-Mail */

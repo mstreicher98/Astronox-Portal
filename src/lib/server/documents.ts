@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
-import { addDays, date, money, today } from '$lib/shared/format';
+import { and, asc, eq, inArray, lte, max, sql } from 'drizzle-orm';
+import { addDays, date, money, time, today } from '$lib/shared/format';
 import { documentNumber } from '$lib/shared/numbers';
 import { logActivity, notify } from './activity';
 import { db, DOCS_DIR } from './db';
@@ -14,8 +14,9 @@ import { getSetting } from './settings';
  *
  * Ein Beleg ist zuerst ein Entwurf und frei änderbar. Beim Festschreiben bekommt
  * er die nächste fortlaufende Nummer, Empfänger und Absender werden eingefroren
- * und das PDF wird abgelegt. Festgeschriebene Rechnungen ändern sich nie mehr –
- * korrigiert wird mit einer Stornorechnung.
+ * und das PDF wird abgelegt. „Bearbeiten“ macht ihn wieder zum Entwurf, die Nummer
+ * bleibt; eine schon verschickte Fassung wird dabei archiviert. Verschickte oder
+ * bezahlte Rechnungen werden nie gelöscht – dafür gibt es die Stornorechnung.
  */
 
 export type DocType = 'angebot' | 'rechnung';
@@ -38,7 +39,7 @@ export async function recalc(id: number) {
 }
 
 /** Nächste Nummer im Nummernkreis des Jahres – lückenlos, auch bei gleichzeitigen Zugriffen */
-async function nextNumber(type: DocType, issueDate: string): Promise<string> {
+async function nextNumber(type: DocType, issueDate: string) {
 	const r = await getSetting('rechnung');
 	const year = issueDate.slice(0, 4);
 	const key = `${type}-${year}`;
@@ -47,7 +48,20 @@ async function nextNumber(type: DocType, issueDate: string): Promise<string> {
 		.values({ key, last: 1 })
 		.onConflictDoUpdate({ target: sequences.key, set: { last: sql`${sequences.last} + 1` } })
 		.returning({ last: sequences.last });
-	return documentNumber(type === 'angebot' ? r.quotePrefix : r.invoicePrefix, year, row.last, r.digits);
+	return { number: documentNumber(type === 'angebot' ? r.quotePrefix : r.invoicePrefix, year, row.last, r.digits), seqKey: key, seq: row.last };
+}
+
+/** Nummer eines gelöschten Belegs: war sie die letzte und nie verschickt, wird sie wieder frei – sonst bleibt die Lücke */
+async function releaseNumber(key: string, seq: number, sent: boolean) {
+	const [s] = await db.select().from(sequences).where(eq(sequences.key, key));
+	if (!s) return;
+	if (sent) {
+		await db.update(sequences).set({ floor: Math.max(s.floor, seq) }).where(eq(sequences.key, key));
+		return;
+	}
+	if (seq !== s.last) return;
+	const [{ top }] = await db.select({ top: max(documents.seq) }).from(documents).where(eq(documents.seqKey, key));
+	await db.update(sequences).set({ last: Math.max(s.floor, top ?? 0) }).where(eq(sequences.key, key));
 }
 
 export interface NewDocument {
@@ -134,13 +148,15 @@ export async function finalize(id: number): Promise<string> {
 	if (doc.status !== 'entwurf') return doc.number!;
 	if (!items.length) throw new Error('Der Beleg hat noch keine Positionen.');
 	await recalc(id);
-	const number = await nextNumber(doc.type, doc.issueDate);
+	// wieder geöffnete Belege behalten ihre Nummer
+	const next = doc.number ? null : await nextNumber(doc.type, doc.issueDate);
+	const number = doc.number ?? next!.number;
 	const recipient = await recipientOf(doc.customerId);
 	const sender = await senderNow();
 	const finalizedAt = new Date().toISOString();
 	await db
 		.update(documents)
-		.set({ number, status: 'offen', recipient: JSON.stringify(recipient), sender: JSON.stringify(sender), finalizedAt, updatedAt: finalizedAt })
+		.set({ number, ...(next && { seqKey: next.seqKey, seq: next.seq }), status: 'offen', recipient: JSON.stringify(recipient), sender: JSON.stringify(sender), finalizedAt, updatedAt: finalizedAt })
 		.where(eq(documents.id, id));
 	const pdf = await documentPdf(id);
 	const file = `${number.replace(/[^\w-]/g, '_')}.pdf`;
@@ -150,10 +166,70 @@ export async function finalize(id: number): Promise<string> {
 		customerId: doc.customerId,
 		projectId: doc.projectId,
 		kind: doc.type,
-		title: `${typeLabel(doc.type)} ${number} festgeschrieben (${money(doc.grossCents)})`,
+		title: `${typeLabel(doc.type)} ${number} ${next ? '' : 'erneut '}festgeschrieben (${money(doc.grossCents)})`,
 		meta: { documentId: id }
 	});
 	return number;
+}
+
+/** Festgeschriebenen Beleg wieder zum Entwurf machen – die Nummer bleibt, eine verschickte Fassung wird archiviert */
+export async function reopenDocument(id: number): Promise<void> {
+	const loaded = await loadDocument(id);
+	if (!loaded) throw new Error('Beleg nicht gefunden');
+	const { doc } = loaded;
+	if (doc.status === 'entwurf') return;
+	if (doc.cancelsId) throw new Error('Stornorechnungen lassen sich nicht bearbeiten.');
+	if (doc.status === 'storniert') throw new Error('Stornierte Rechnungen lassen sich nicht mehr bearbeiten.');
+	const now = new Date().toISOString();
+	let archived: string | null = null;
+	if (doc.pdfFile) {
+		const file = path.join(DOCS_DIR, doc.pdfFile);
+		if (doc.sentAt) {
+			archived = `${doc.pdfFile.replace(/\.pdf$/, '')}_fassung_${today(new Date(now))}_${time(now).replace(':', '')}.pdf`;
+			await fs.rename(file, path.join(DOCS_DIR, archived)).catch(() => (archived = null));
+		} else await fs.rm(file, { force: true });
+	}
+	await db
+		.update(documents)
+		.set({ status: 'entwurf', pdfFile: null, recipient: null, sender: null, finalizedAt: null, paidAt: null, decidedAt: null, updatedAt: now })
+		.where(eq(documents.id, id));
+	await logActivity({
+		customerId: doc.customerId,
+		projectId: doc.projectId,
+		kind: doc.type,
+		title: `${typeLabel(doc.type)} ${doc.number} zur Bearbeitung geöffnet${archived ? ` (verschickte Fassung archiviert: ${archived})` : ''}`,
+		meta: { documentId: id }
+	});
+}
+
+/** Warum ein Beleg nicht gelöscht werden darf – null heißt: darf */
+export function deleteBlocker(doc: Pick<DocumentRow, 'type' | 'status' | 'cancelsId' | 'sentAt'>): string | null {
+	if (doc.type === 'angebot') return null;
+	if (doc.cancelsId) return 'Stornorechnungen werden aufbewahrt.';
+	if (doc.status === 'storniert') return 'Stornierte Rechnungen werden zusammen mit ihrem Storno aufbewahrt.';
+	if (doc.status === 'bezahlt') return 'Bezahlte Rechnungen werden aufbewahrt. Zum Ändern: Bearbeiten oder Stornieren.';
+	if (doc.sentAt) return 'Verschickte Rechnungen musst du 7 Jahre aufbewahren. Zum Ändern: Bearbeiten oder Stornieren.';
+	return null;
+}
+
+/** Beleg samt PDF löschen; abgerechnete Zeiten werden wieder frei */
+export async function deleteDocument(id: number): Promise<void> {
+	const loaded = await loadDocument(id);
+	if (!loaded) throw new Error('Beleg nicht gefunden');
+	const { doc } = loaded;
+	const blocker = deleteBlocker(doc);
+	if (blocker) throw new Error(blocker);
+	await db.delete(documents).where(eq(documents.id, id));
+	if (doc.pdfFile) await fs.rm(path.join(DOCS_DIR, doc.pdfFile), { force: true });
+	if (doc.seqKey && doc.seq != null) await releaseNumber(doc.seqKey, doc.seq, !!doc.sentAt);
+	if (doc.number) {
+		await logActivity({
+			customerId: doc.customerId,
+			projectId: doc.projectId,
+			kind: doc.type,
+			title: `${typeLabel(doc.type)} ${doc.number} gelöscht (${money(doc.grossCents)})`
+		});
+	}
 }
 
 /** PDF: festgeschriebene Belege aus der Ablage, Entwürfe frisch mit Wasserzeichen */
