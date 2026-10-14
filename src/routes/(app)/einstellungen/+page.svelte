@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Building2, Info, ReceiptText } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import { moneyInput } from '$lib/shared/format';
+	import { documentNumber } from '$lib/shared/numbers';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
 
@@ -13,6 +15,11 @@
 		taxMode = data.rechnung.taxMode;
 	});
 	const year = new Date().getFullYear();
+	// Vorschau der Nummern beim Tippen
+	const r0 = untrack(() => data.rechnung);
+	let invoiceFormat = $state(r0.invoicePrefix);
+	let quoteFormat = $state(r0.quotePrefix);
+	let digits = $state(r0.digits);
 </script>
 
 <svelte:head><title>Firma & Rechnungen – Einstellungen</title></svelte:head>
@@ -55,9 +62,10 @@
 		</label>
 		<label class="field"><span>USt.-Satz %</span><input name="taxRate" inputmode="numeric" value={r.taxRate} disabled={taxMode === 'klein'} /></label>
 		{#if taxMode === 'klein'}<label class="field full"><span>Hinweis auf der Rechnung</span><input name="kleinText" value={r.kleinText} /></label>{/if}
-		<label class="field"><span>Rechnungsnummer <small>– Vorsilbe</small></span><input name="invoicePrefix" value={r.invoicePrefix} /><small class="hint">z. B. {r.invoicePrefix.replace('{JJJJ}', String(year))}{'1'.padStart(r.digits, '0')}</small></label>
-		<label class="field"><span>Angebotsnummer <small>– Vorsilbe</small></span><input name="quotePrefix" value={r.quotePrefix} /><small class="hint">{'{JJJJ}'} wird zum Jahr</small></label>
-		<label class="field"><span>Stellen der laufenden Nummer</span><input name="digits" type="number" min="1" max="6" value={r.digits} /></label>
+		<label class="field"><span>Rechnungsnummer <small>– Format</small></span><input name="invoicePrefix" bind:value={invoiceFormat} /><small class="hint">z. B. {documentNumber(invoiceFormat, year, 1, digits)}, {documentNumber(invoiceFormat, year, 2, digits)} …</small></label>
+		<label class="field"><span>Angebotsnummer <small>– Format</small></span><input name="quotePrefix" bind:value={quoteFormat} /><small class="hint">z. B. {documentNumber(quoteFormat, year, 1, digits)}, {documentNumber(quoteFormat, year, 2, digits)} …</small></label>
+		<p class="small muted full">{'{JJ}'} = Jahr zweistellig, {'{JJJJ}'} = Jahr, {'{NR}'} = laufende Nummer. Sie beginnt jedes Jahr wieder bei 1.</p>
+		<label class="field"><span>Mindeststellen der Nummer</span><input name="digits" type="number" min="1" max="6" bind:value={digits} /><small class="hint">1 = ohne führende Nullen, 3 = 001</small></label>
 		<label class="field"><span>Standard-Stundensatz (€)</span><input name="hourlyRate" inputmode="decimal" value={moneyInput(r.hourlyRateCents)} /></label>
 		<label class="field"><span>Zahlungsziel (Tage)</span><input name="paymentDays" type="number" min="0" value={r.paymentDays} /></label>
 		<label class="field"><span>Angebote gültig (Tage)</span><input name="quoteValidDays" type="number" min="1" value={r.quoteValidDays} /></label>

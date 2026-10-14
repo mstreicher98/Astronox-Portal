@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { addDays, date, money, today } from '$lib/shared/format';
+import { documentNumber } from '$lib/shared/numbers';
 import { logActivity, notify } from './activity';
 import { db, DOCS_DIR } from './db';
 import { customers, documentItems, documents, sequences, timeEntries, type DocumentItem, type DocumentRow } from './db/schema';
@@ -46,8 +47,7 @@ async function nextNumber(type: DocType, issueDate: string): Promise<string> {
 		.values({ key, last: 1 })
 		.onConflictDoUpdate({ target: sequences.key, set: { last: sql`${sequences.last} + 1` } })
 		.returning({ last: sequences.last });
-	const prefix = (type === 'angebot' ? r.quotePrefix : r.invoicePrefix).replace('{JJJJ}', year);
-	return `${prefix}${String(row.last).padStart(Math.max(1, r.digits), '0')}`;
+	return documentNumber(type === 'angebot' ? r.quotePrefix : r.invoicePrefix, year, row.last, r.digits);
 }
 
 export interface NewDocument {

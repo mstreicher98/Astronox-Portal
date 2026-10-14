@@ -71,7 +71,7 @@ export interface RechnungSettings {
 	taxRate: number;
 	/** Hinweis bei Kleinunternehmerregelung */
 	kleinText: string;
-	/** {JJJJ} wird durch das Jahr ersetzt, danach folgt die laufende Nummer */
+	/** Nummernformat: {JJJJ}/{JJ} = Jahr, {NR} = laufende Nummer des Jahres (siehe numbers.ts) */
 	invoicePrefix: string;
 	quotePrefix: string;
 	digits: number;
