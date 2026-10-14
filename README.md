@@ -90,8 +90,8 @@ Einstellungen → Benachrichtigungen → „Auf diesem Gerät einschalten“. Am
 
 ## Rechnungen – gut zu wissen
 
-- Nummern wie  /  (Format unter Einstellungen: , , ), jedes Jahr ab 1
-- **Bearbeiten:** macht einen festgeschriebenen Beleg wieder zum Entwurf, die Nummer bleibt. War er schon verschickt, wird die alte Fassung als  archiviert. Stornierte Rechnungen und Stornorechnungen bleiben unverändert
+- Nummern wie `RE26 0001` / `AN26 0001` (Format unter Einstellungen: `{JJ}`, `{JJJJ}`, `{NR}`), jedes Jahr ab 1
+- **Bearbeiten:** macht einen festgeschriebenen Beleg wieder zum Entwurf, die Nummer bleibt. War er schon verschickt, wird die alte Fassung als `…_fassung_<Datum>_<Uhrzeit>.pdf` archiviert. Stornierte Rechnungen und Stornorechnungen bleiben unverändert
 - **Löschen:** Angebote immer. Rechnungen nur, solange sie nie verschickt und nicht bezahlt wurden – sonst „Stornieren“ (Stornorechnung mit eigener Nummer). War es die letzte Nummer und nie verschickt, wird sie wieder vergeben, sonst bleibt eine Lücke (im Verlauf vermerkt)
 - Pflichtangaben nach § 11 UStG stehen auf jeder Rechnung; Briefkopf (Anschrift, Bank) vor der ersten Rechnung unter Einstellungen eintragen
 - Als Kleinunternehmer erscheint der Hinweis nach § 6 Abs. 1 Z 27 UStG; Umstellung auf Regelbesteuerung gilt für neue Belege
