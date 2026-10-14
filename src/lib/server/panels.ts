@@ -1,8 +1,8 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { and, desc, eq, or, type SQL } from 'drizzle-orm';
 import { today } from '$lib/shared/format';
-import { INTERVALS, type IntervalId } from '$lib/shared/stages';
 import { logActivity } from './activity';
+import { billingsOf, cancelContract, revokeCancellation, saveContract, withItems } from './contracts';
 import { db } from './db';
 import { activities, contracts, credentials, domains, files, mailMessages, monitors, projects } from './db/schema';
 import { act, bad, type Fields } from './forms';
@@ -53,7 +53,8 @@ export async function loadPanels(o: Owner) {
 	return {
 		files: fileRows,
 		credentials: credRows.map((c) => ({ ...c, hasSecret: !!c.hasSecret, hasNotes: !!c.hasNotes })),
-		contracts: contractRows,
+		contracts: await withItems(contractRows),
+		billings: await billingsOf(contractRows.map((c) => c.id)),
 		domains: domainRows,
 		monitors: monitorRows,
 		timeline: timeline.map((r) => ({ ...r.a, project: r.project })),
@@ -121,35 +122,19 @@ export async function removeCredential(o: Owner, f: Fields) {
 	return { message: 'Zugang gelöscht' };
 }
 
-export async function saveContract(o: Owner, f: Fields) {
-	const id = f.id('id');
-	const startDate = f.day('startDate') ?? today();
-	const interval = f.oneOf<IntervalId>('interval', INTERVALS.map((i) => i.id), 'monat');
-	const values = {
-		title: f.req('title', 'eine Bezeichnung', 200),
-		description: f.str('description', 2000),
-		amountCents: f.money('amount') ?? bad('Bitte den Betrag angeben.'),
-		interval,
-		startDate,
-		endDate: f.day('endDate'),
-		nextInvoiceDate: f.day('nextInvoiceDate') ?? startDate,
-		autoInvoice: f.bool('autoInvoice'),
-		active: f.has('active') ? f.bool('active') : true,
-		updatedAt: new Date().toISOString()
-	};
-	if (id) {
-		await db.update(contracts).set(values).where(and(eq(contracts.id, id), belongs(contracts, o)));
-		return { message: 'Vertrag gespeichert' };
-	}
-	await db.insert(contracts).values({ ...values, ...o });
-	await logActivity({ ...o, kind: 'system', title: `Wartungsvertrag angelegt: ${values.title}` });
-	return { message: 'Vertrag angelegt' };
+/* Verträge: Logik in contracts.ts, hier nur auf Kunde/Projekt eingeschränkt */
+async function saveContractHere(o: Owner, f: Fields) {
+	const r = await saveContract(o, f, belongs(contracts, o));
+	return { message: r.message };
 }
 
-export async function removeContract(o: Owner, f: Fields) {
+async function cancelContractHere(o: Owner, f: Fields) {
 	const id = f.id('id') ?? bad('Vertrag fehlt');
-	await db.update(contracts).set({ active: false, endDate: today() }).where(and(eq(contracts.id, id), belongs(contracts, o)));
-	return { message: 'Vertrag beendet' };
+	return cancelContract(id, f.day('cancelledOn') ?? today(), f.day('endDate'), belongs(contracts, o));
+}
+
+async function revokeCancellationHere(o: Owner, f: Fields) {
+	return revokeCancellation(f.id('id') ?? bad('Vertrag fehlt'), belongs(contracts, o));
 }
 
 export async function saveDomain(o: Owner, f: Fields) {
@@ -198,8 +183,9 @@ export function panelActions(owner: (params: Record<string, string>) => Promise<
 		datei_loeschen: wrap(removeFile),
 		zugang: wrap(saveCredential),
 		zugang_loeschen: wrap(removeCredential),
-		vertrag: wrap(saveContract),
-		vertrag_beenden: wrap(removeContract),
+		vertrag: wrap(saveContractHere),
+		vertrag_kuendigen: wrap(cancelContractHere),
+		vertrag_kuendigung_zuruecknehmen: wrap(revokeCancellationHere),
 		domain: wrap(saveDomain),
 		domain_loeschen: wrap(removeDomain),
 		monitor: wrap(saveMonitor),

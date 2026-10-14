@@ -1,24 +1,35 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Activity, Globe, Pencil, Plus, Repeat, ShieldCheck } from '@lucide/svelte';
+	import ContractForm from './ContractForm.svelte';
 	import Modal from './Modal.svelte';
-	import type { Contract, Domain, Monitor } from '$lib/server/db/schema';
-	import { date, daysBetween, dayOf, money, moneyInput, relative, today } from '$lib/shared/format';
-	import { INTERVALS, intervalOf } from '$lib/shared/stages';
+	import type { Contract, ContractBilling, ContractItem, Domain, Monitor } from '$lib/server/db/schema';
+	import { contractStatus, STATUS_LABEL } from '$lib/shared/billing';
+	import { date, daysBetween, dayOf, money, relative, today } from '$lib/shared/format';
+	import { contractKindOf, intervalOf } from '$lib/shared/stages';
 	import { submit } from '$lib/ui/form';
 
-	/** Wartungsverträge, Domains und Überwachung – bei Kunde und Projekt */
-	let { contracts, domains, monitors }: { contracts: Contract[]; domains: Domain[]; monitors: Monitor[] } = $props();
+	type ContractRow = Contract & { items: ContractItem[] };
+	type BillingRow = ContractBilling & { number: string | null; status: string | null };
+
+	/** Verträge, Domains und Überwachung – bei Kunde und Projekt */
+	let {
+		contracts,
+		domains,
+		monitors,
+		billings = [],
+		projects = []
+	}: { contracts: ContractRow[]; domains: Domain[]; monitors: Monitor[]; billings?: BillingRow[]; projects?: { id: number; title: string }[] } = $props();
 
 	let dialog = $state<'vertrag' | 'domain' | 'monitor' | null>(null);
-	let contract = $state<Contract | null>(null);
+	let contract = $state<ContractRow | null>(null);
 	let domain = $state<Domain | null>(null);
 	let monitor = $state<Monitor | null>(null);
 	let open = $state(false);
 
-	function show(kind: 'vertrag' | 'domain' | 'monitor', item: Contract | Domain | Monitor | null = null) {
+	function show(kind: 'vertrag' | 'domain' | 'monitor', item: ContractRow | Domain | Monitor | null = null) {
 		dialog = kind;
-		contract = kind === 'vertrag' ? (item as Contract | null) : null;
+		contract = kind === 'vertrag' ? (item as ContractRow | null) : null;
 		domain = kind === 'domain' ? (item as Domain | null) : null;
 		monitor = kind === 'monitor' ? (item as Monitor | null) : null;
 		open = true;
@@ -31,12 +42,22 @@
 <div class="grid">
 	<section>
 		<div class="spread">
-			<h3><Repeat size={15} /> Wartung & Hosting</h3>
+			<h3><Repeat size={15} /> Verträge</h3>
 			<button class="btn quiet sm" type="button" onclick={() => show('vertrag')}><Plus size={14} /> Vertrag</button>
 		</div>
 		{#each contracts as c (c.id)}
-			<button type="button" class="item" class:off={!c.active} onclick={() => show('vertrag', c)}>
-				<span class="txt"><strong>{c.title}</strong><small>{money(c.amountCents)} {intervalOf(c.interval).label}{c.active ? ` · nächste Rechnung ${relative(c.nextInvoiceDate)}` : ' · beendet'}</small></span>
+			{@const st = contractStatus(c, day)}
+			<button type="button" class="item" class:off={st === 'beendet' || st === 'pausiert'} onclick={() => show('vertrag', c)}>
+				<span class="kind" style="--c: {contractKindOf(c.kind).color}" title={contractKindOf(c.kind).label}></span>
+				<span class="txt">
+					<strong>{c.title}</strong>
+					<small>
+						{money(c.amountCents)} {intervalOf(c.interval).label}
+						{#if st === 'aktiv' || st === 'geplant'}{#if c.autoInvoice} · nächste Rechnung {relative(c.nextInvoiceDate)}{c.autoSend ? ' (automatisch)' : ''}{:else} · ohne Rechnung{/if}{/if}
+						{#if st === 'gekuendigt'} · endet am {date(c.endDate)}{/if}
+					</small>
+				</span>
+				{#if st !== 'aktiv'}<span class="badge {STATUS_LABEL[st].tone}">{STATUS_LABEL[st].label}</span>{/if}
 				<Pencil size={14} />
 			</button>
 		{:else}
@@ -84,28 +105,9 @@
 	</section>
 </div>
 
-<Modal bind:open title={dialog === 'vertrag' ? (contract ? 'Vertrag bearbeiten' : 'Neuer Wartungsvertrag') : dialog === 'domain' ? (domain ? 'Domain bearbeiten' : 'Neue Domain') : monitor ? 'Überwachung bearbeiten' : 'Seite überwachen'}>
+<Modal bind:open wide={dialog === 'vertrag'} title={dialog === 'vertrag' ? (contract ? 'Vertrag bearbeiten' : 'Neuer Vertrag') : dialog === 'domain' ? (domain ? 'Domain bearbeiten' : 'Neue Domain') : monitor ? 'Überwachung bearbeiten' : 'Seite überwachen'}>
 	{#if dialog === 'vertrag'}
-		<form method="POST" action="?/vertrag" class="stack" use:enhance={submit({ done: close })}>
-			{#if contract}<input type="hidden" name="id" value={contract.id} />{/if}
-			<label class="field"><span>Bezeichnung</span><input name="title" required value={contract?.title ?? 'Hosting & Wartung'} /></label>
-			<label class="field"><span>Beschreibung <small>(erscheint auf der Rechnung)</small></span><textarea name="description" rows="2">{contract?.description ?? 'Betrieb, Updates, tägliche Sicherungen und kleine Änderungen'}</textarea></label>
-			<div class="form-grid">
-				<label class="field"><span>Betrag (€, netto)</span><input name="amount" inputmode="decimal" required value={moneyInput(contract?.amountCents)} /></label>
-				<label class="field">
-					<span>Abrechnung</span>
-					<select name="interval" value={contract?.interval ?? 'monat'}>
-						{#each INTERVALS as iv (iv.id)}<option value={iv.id}>{iv.label}</option>{/each}
-					</select>
-				</label>
-				<label class="field"><span>Beginn</span><input name="startDate" type="date" value={contract?.startDate ?? day} /></label>
-				<label class="field"><span>Nächste Rechnung ab</span><input name="nextInvoiceDate" type="date" value={contract?.nextInvoiceDate ?? ''} /></label>
-				<label class="field"><span>Ende <small>(optional)</small></span><input name="endDate" type="date" value={contract?.endDate ?? ''} /></label>
-			</div>
-			<label class="switch"><input type="checkbox" name="autoInvoice" checked={contract?.autoInvoice ?? true} /> Rechnungsentwurf automatisch anlegen</label>
-			{#if contract}<label class="switch"><input type="checkbox" name="active" checked={contract.active} /> Vertrag aktiv</label>{/if}
-			<div class="form-actions"><button class="btn" type="submit">Speichern</button></div>
-		</form>
+		<ContractForm {contract} {projects} billings={contract ? billings.filter((x) => x.contractId === contract!.id) : []} done={close} />
 	{:else if dialog === 'domain'}
 		<form method="POST" action="?/domain" class="stack" use:enhance={submit({ done: close })}>
 			{#if domain}<input type="hidden" name="id" value={domain.id} />{/if}
@@ -211,6 +213,15 @@
 		gap: 0.25rem;
 		color: var(--dust-2);
 		font-size: 0.77rem;
+	}
+
+	.kind {
+		flex: none;
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 50%;
+		background: var(--c);
+		box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent);
 	}
 
 	.status {

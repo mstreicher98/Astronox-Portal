@@ -20,7 +20,7 @@ export const actions: Actions = {
 	mail_loeschen: act(async (_e, f) => {
 		const id = f.id('id') ?? bad('Vorlage fehlt');
 		const [t] = await db.select().from(mailTemplates).where(eq(mailTemplates.id, id));
-		if (t?.key && ['angebot', 'rechnung', 'mahnung'].includes(t.key)) bad('Diese Vorlage wird für Angebote und Rechnungen gebraucht – bitte nur ändern.');
+		if (t?.key && ['angebot', 'rechnung', 'mahnung', 'vertragsrechnung'].includes(t.key)) bad('Diese Vorlage wird für Angebote und Rechnungen gebraucht – bitte nur ändern.');
 		await db.delete(mailTemplates).where(eq(mailTemplates.id, id));
 		return { message: 'Vorlage gelöscht' };
 	}),

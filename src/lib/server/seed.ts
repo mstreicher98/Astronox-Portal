@@ -1,9 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { db } from './db';
 import { checklistTemplates, mailTemplates } from './db/schema';
 
 /**
  * Startwerte beim ersten Start: Mail-Vorlagen und eine Launch-Checkliste.
- * Platzhalter in Vorlagen: {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}.
+ * Platzhalter in Vorlagen: {{anrede}}, {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}, {{zeitraum}}.
  */
 
 const TEMPLATES = [
@@ -42,6 +43,17 @@ Matthias Streicher`
 vielen Dank für Ihren Auftrag. Im Anhang finden Sie die Rechnung {{nummer}} über {{betrag}}, zahlbar bis {{datum}}.
 
 Viele Grüße
+Matthias Streicher`
+	},
+	{
+		key: 'vertragsrechnung',
+		name: 'Rechnung zu einem Vertrag (automatisch)',
+		subject: 'Rechnung {{nummer}} – {{titel}}',
+		body: `{{anrede}}
+
+im Anhang finden Sie die Rechnung {{nummer}} für den Zeitraum {{zeitraum}} über {{betrag}}, zahlbar bis {{datum}}.
+
+Vielen Dank für Ihr Vertrauen und viele Grüße
 Matthias Streicher`
 	},
 	{
@@ -90,6 +102,11 @@ const LAUNCH = [
 export async function seedPortal() {
 	const [anyTemplate] = await db.select({ id: mailTemplates.id }).from(mailTemplates).limit(1);
 	if (!anyTemplate) await db.insert(mailTemplates).values(TEMPLATES);
+	else {
+		// später hinzugekommene Vorlagen, die das Portal selbst braucht
+		const [contract] = await db.select({ id: mailTemplates.id }).from(mailTemplates).where(eq(mailTemplates.key, 'vertragsrechnung')).limit(1);
+		if (!contract) await db.insert(mailTemplates).values(TEMPLATES.filter((t) => t.key === 'vertragsrechnung'));
+	}
 	const [anyList] = await db.select({ id: checklistTemplates.id }).from(checklistTemplates).limit(1);
 	if (!anyList) {
 		await db.insert(checklistTemplates).values([

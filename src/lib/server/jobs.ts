@@ -5,7 +5,8 @@ import { purgeSessions } from './auth';
 import { dailyBackup } from './backup';
 import { db } from './db';
 import { domains, monitors, notifications } from './db/schema';
-import { overdueReminders, recurringInvoices } from './documents';
+import { billContracts } from './contracts';
+import { overdueReminders } from './documents';
 import { syncInbox } from './imap';
 import { purgeChecks, runMonitors } from './monitor';
 import { getSetting, setSetting } from './settings';
@@ -16,7 +17,7 @@ import { syncWebsite } from './sync';
  *  - alle 15 s: neue Anfragen und Termine von der Webseite
  *  - alle 30 s: fällige Prüfungen der Kundenseiten
  *  - alle 2 min: Posteingang (wenn IMAP eingerichtet ist)
- *  - einmal am Tag ab 3 Uhr: Sicherung, Abo-Rechnungen, Fristen, Aufräumen
+ *  - einmal am Tag ab 3 Uhr: Sicherung, Vertragsrechnungen, Fristen, Aufräumen
  */
 
 let started = false;
@@ -69,7 +70,7 @@ async function daily() {
 	await setSetting('taeglich', { day: today() });
 	const steps: [string, () => Promise<unknown>][] = [
 		['Sicherung', dailyBackup],
-		['Abo-Rechnungen', recurringInvoices],
+		['Vertragsrechnungen', () => billContracts()],
 		['Überfällige Rechnungen', overdueReminders],
 		['Fristen', expiryWarnings],
 		['Aufräumen', async () => {

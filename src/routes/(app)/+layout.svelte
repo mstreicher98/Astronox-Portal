@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import {
 		CalendarDays,
+		FileSignature,
 		FolderKanban,
 		Globe,
 		Inbox,
@@ -37,6 +38,7 @@
 		{ href: '/termine', label: 'Termine', icon: CalendarDays },
 		{ href: '/posteingang', label: 'Posteingang', icon: Inbox, badge: data.badges.mails, tone: 'info' },
 		{ href: '/rechnungen', label: 'Angebote & Rechnungen', icon: ReceiptText, badge: data.badges.ueberfaellig, tone: 'warn' },
+		{ href: '/vertraege', label: 'Verträge', icon: FileSignature },
 		{ href: '/hosting', label: 'Hosting & Wartung', icon: Server, badge: data.badges.offline, tone: 'danger' },
 		{ href: '/webseite', label: 'Webseite', icon: Globe },
 		{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }

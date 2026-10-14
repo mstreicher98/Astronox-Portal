@@ -229,7 +229,7 @@
 			{:else if tab === 'zugaenge'}
 				<div class="card" use:glow><CredentialsPanel credentials={data.credentials} /></div>
 			{:else if tab === 'hosting'}
-				<div class="card" use:glow><HostingPanel contracts={data.contracts} domains={data.domains} monitors={data.monitors} /></div>
+				<div class="card" use:glow><HostingPanel contracts={data.contracts} domains={data.domains} monitors={data.monitors} billings={data.billings} projects={data.projects.map((p) => ({ id: p.id, title: p.title }))} /></div>
 			{/if}
 		</div>
 	{/key}

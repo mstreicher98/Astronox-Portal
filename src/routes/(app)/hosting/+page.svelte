@@ -74,7 +74,7 @@
 
 	<div class="grid-2">
 		<section class="card" use:glow>
-			<div class="card-head"><h2><Repeat size={16} /> Verträge</h2></div>
+			<div class="card-head"><h2><Repeat size={16} /> Verträge</h2><a class="small" href="/vertraege">Alle Verträge</a></div>
 			<ul class="list">
 				{#each data.contracts as c (c.id)}
 					<li class="row-item" class:off={!c.active}>

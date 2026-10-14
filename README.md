@@ -12,8 +12,9 @@ Internes Portal von Astronox Development: Webseite bearbeiten, Kunden verwalten,
 | **Kunden** | Firmen und Privatpersonen, Ansprechpersonen, Projekte, Termine, Belege, Verlauf, Dateien, Zugänge, Hosting |
 | **Aufgaben, Zeiten, Termine** | projektübergreifend; Termine kommen von der Webseite, Absagen und Abwesenheiten (sperrt Buchungen) direkt hier |
 | **Posteingang** | liest office@astronox.dev per IMAP mit, ordnet Mails Kunden zu, Antworten und Weiterleiten aus dem Portal, Anhänge landen bei den Dateien |
-| **Angebote & Rechnungen** | PDF im Astronox-Design, fortlaufende Nummern je Jahr, Festschreiben, Versand per Mail, bezahlt, angenommen/abgelehnt, Angebot → Rechnung, Storno, Kleinunternehmer oder USt., wiederkehrende Rechnungsentwürfe für Wartungsverträge, Export (CSV und ZIP mit PDFs) für die Steuerberatung |
-| **Hosting & Wartung** | Erreichbarkeit der Kundenseiten (Prüfung alle paar Minuten, Zertifikat), Wartungsverträge, Domains mit Ablaufdatum |
+| **Angebote & Rechnungen** | PDF im Astronox-Design, fortlaufende Nummern je Jahr, Festschreiben, Versand per Mail, bezahlt, angenommen/abgelehnt, Angebot → Rechnung, Storno, Kleinunternehmer oder USt., Export (CSV und ZIP mit PDFs) für die Steuerberatung |
+| **Verträge** | Hosting-, Wartungs- und Supportverträge je Kunde mit mehreren Positionen, Mindestlaufzeit und Kündigungsfrist; monatliche Sammelrechnung je Kunde, wahlweise als Entwurf oder automatisch festgeschrieben und per Mail gesendet; Übersicht mit wiederkehrendem Umsatz und den nächsten Rechnungen |
+| **Hosting & Wartung** | Erreichbarkeit der Kundenseiten (Prüfung alle paar Minuten, Zertifikat), Verträge, Domains mit Ablaufdatum |
 | **Webseite** | alle Texte, Leistungen, Ablauf, Referenzen mit Bildern, Pakete & Preise, Über mich mit Foto, Impressum, Datenschutz – als Entwurf mit Live-Vorschau (Handy/Tablet/Desktop), dann veröffentlichen. Besucherstatistik ohne Cookies |
 | **Einstellungen** | Briefkopf und Belege, buchbare Zeiten, Auswahl der Projektanfrage, SMTP/IMAP, Mail- und Checklisten-Vorlagen, Push aufs Handy, Sicherheit, Sicherungen |
 
@@ -81,7 +82,7 @@ Jeder Push auf `main` baut `ghcr.io/mstreicher98/astronox-portal:latest`. Das Pa
 | alle 15 s | neue Anfragen, Buchungen und Absagen von der Webseite |
 | alle 30 s | fällige Erreichbarkeits-Prüfungen (Alarm nach zwei Fehlversuchen) |
 | alle 2 min | Posteingang (wenn eingerichtet) |
-| täglich ab 3 Uhr | Sicherung, Rechnungsentwürfe für Wartungsverträge, überfällige Rechnungen, Domain-/Zertifikatsfristen, Aufräumen |
+| täglich ab 3 Uhr | Sicherung, Vertragsrechnungen, überfällige Rechnungen, Domain-/Zertifikatsfristen, Aufräumen |
 
 ### Push aufs Handy
 
@@ -93,3 +94,11 @@ Einstellungen → Benachrichtigungen → „Auf diesem Gerät einschalten“. Am
 - Pflichtangaben nach § 11 UStG stehen auf jeder Rechnung; Briefkopf (Anschrift, Bank) vor der ersten Rechnung unter Einstellungen eintragen
 - Als Kleinunternehmer erscheint der Hinweis nach § 6 Abs. 1 Z 27 UStG; Umstellung auf Regelbesteuerung gilt für neue Belege
 - Aufbewahrung: PDFs liegen unter `/data/portal/belege` und sind Teil der Sicherung
+
+## Verträge und Monatsrechnungen
+
+- **Im Voraus am Monatsersten:** Der tägliche Lauf (ab 3 Uhr) rechnet jeden Zeitraum ab, der bis heute begonnen hat. Beginnt ein Vertrag mitten im Monat, kommt sofort eine anteilige Rechnung bis Monatsende („anteilig für 22 von 31 Tagen“), danach jeweils am Ersten. Endet ein Vertrag mitten im Zeitraum, wird der letzte Zeitraum anteilig berechnet. Auf der Seite „Verträge“ startet „Fällige abrechnen“ den Lauf sofort.
+- **Sammelrechnung:** Alle fälligen Verträge eines Kunden landen auf einer Rechnung, jede Position mit ihrem Zeitraum.
+- **Entwurf oder automatisch:** Pro Vertrag wählbar. Automatisch heißt: festschreiben, PDF ablegen und mit der Vorlage „Rechnung zu einem Vertrag“ (Einstellungen → Vorlagen) an den Kunden mailen. Das passiert nur, wenn *alle* Verträge auf der Rechnung auf „Automatisch senden“ stehen und Kundenanschrift, Kunden-E-Mail, SMTP und dein Briefkopf vorhanden sind – sonst bleibt es ein Entwurf und du bekommst eine Benachrichtigung mit dem Grund. Scheitert der Versand, ist die Rechnung festgeschrieben und du wirst gebeten, sie selbst zu senden.
+- **Kündigung:** „Kündigung erfassen“ setzt das Ende auf den frühestmöglichen Termin (Frist in Monaten zum Monatsende, frühestens nach der Mindestlaufzeit). Nach dem Ende wird der Vertrag automatisch stillgelegt.
+- Jeder abgerechnete Zeitraum steht im Verlauf des Vertrags (Tabelle `contract_billings`) und wird nie doppelt abgerechnet. Wird ein Entwurf gelöscht, wird dieser Zeitraum nicht neu erzeugt – dann die Rechnung über „Angebote & Rechnungen“ neu anlegen oder „Nächste Rechnung ab“ im Vertrag zurücksetzen.

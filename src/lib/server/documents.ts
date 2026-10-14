@@ -1,11 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
-import { addDays, addMonths, date, money, today } from '$lib/shared/format';
-import { intervalOf } from '$lib/shared/stages';
+import { addDays, date, money, today } from '$lib/shared/format';
 import { logActivity, notify } from './activity';
 import { db, DOCS_DIR } from './db';
-import { contracts, customers, documentItems, documents, sequences, timeEntries, type DocumentItem, type DocumentRow } from './db/schema';
+import { customers, documentItems, documents, sequences, timeEntries, type DocumentItem, type DocumentRow } from './db/schema';
 import { renderPdf } from './pdf';
 import { getSetting } from './settings';
 
@@ -231,41 +230,6 @@ export async function cancelInvoice(invoiceId: number): Promise<number> {
 	// abgerechnete Zeiten wieder freigeben
 	await db.update(timeEntries).set({ invoiceId: null }).where(eq(timeEntries.invoiceId, doc.id));
 	return id;
-}
-
-/* ------------------------------------------------------------------ Abo-Rechnungen */
-
-/** Rechnungsentwürfe für Hosting- und Wartungsverträge, deren Zeitraum begonnen hat */
-export async function recurringInvoices(): Promise<number> {
-	const day = today();
-	const due = await db
-		.select()
-		.from(contracts)
-		.where(and(eq(contracts.active, true), eq(contracts.autoInvoice, true), lte(contracts.nextInvoiceDate, day)));
-	let created = 0;
-	for (const c of due) {
-		// bis zu 12 versäumte Zeiträume nachholen
-		let next = c.nextInvoiceDate;
-		for (let i = 0; i < 12 && next <= day && (!c.endDate || next <= c.endDate); i++) {
-			const iv = intervalOf(c.interval);
-			const end = addDays(addMonths(next, iv.months), -1);
-			const period = `${date(next)} – ${date(end)}`;
-			const id = await createDocument({
-				type: 'rechnung',
-				customerId: c.customerId,
-				projectId: c.projectId,
-				contractId: c.id,
-				title: c.title,
-				servicePeriod: period,
-				items: [{ title: c.title, description: [c.description, `Zeitraum ${period}`].filter(Boolean).join('\n'), quantity: 1, unit: 'Pauschale', unitPriceCents: c.amountCents }]
-			});
-			created++;
-			await notify({ kind: 'rechnung', title: `Rechnungsentwurf: ${c.title}`, body: `${period} · ${money(c.amountCents)}`, url: `/rechnungen/${id}` });
-			next = addMonths(next, iv.months);
-		}
-		await db.update(contracts).set({ nextInvoiceDate: next, updatedAt: new Date().toISOString() }).where(eq(contracts.id, c.id));
-	}
-	return created;
 }
 
 /** Überfällige Rechnungen einmal pro Woche melden */

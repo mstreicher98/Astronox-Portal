@@ -44,6 +44,19 @@ export type IntervalId = (typeof INTERVALS)[number]['id'];
 
 export const intervalOf = (id: string) => INTERVALS.find((i) => i.id === id) ?? INTERVALS[0];
 
+/** Vertragsarten – Farben wie die Leistungen auf der Webseite */
+export const CONTRACT_KIND_IDS = ['hosting', 'wartung', 'support', 'sonstiges'] as const;
+export type ContractKind = (typeof CONTRACT_KIND_IDS)[number];
+
+export const CONTRACT_KINDS: { id: ContractKind; label: string; color: string; title: string; item: string; description: string }[] = [
+	{ id: 'hosting', label: 'Hosting', color: '#f472b6', title: 'Hosting', item: 'Hosting', description: 'Betrieb der Webseite inkl. SSL-Zertifikat und täglicher Sicherung' },
+	{ id: 'wartung', label: 'Wartung', color: '#7dd3fc', title: 'Wartung', item: 'Wartung', description: 'Updates, Sicherheitsprüfungen und Überwachung der Erreichbarkeit' },
+	{ id: 'support', label: 'Support', color: '#b197fc', title: 'Support', item: 'Support-Pauschale', description: 'Kleine Änderungen und Hilfe per E-Mail und Telefon' },
+	{ id: 'sonstiges', label: 'Sonstiges', color: '#5eead4', title: 'Laufende Leistung', item: 'Laufende Leistung', description: '' }
+];
+
+export const contractKindOf = (id: string) => CONTRACT_KINDS.find((k) => k.id === id) ?? CONTRACT_KINDS[3];
+
 export const DOC_STATUS: Record<string, { label: string; tone: 'muted' | 'info' | 'ok' | 'warn' | 'danger' }> = {
 	entwurf: { label: 'Entwurf', tone: 'muted' },
 	offen: { label: 'Offen', tone: 'info' },

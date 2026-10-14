@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { STAGE_IDS } from '../../shared/stages';
+import { CONTRACT_KIND_IDS, STAGE_IDS } from '../../shared/stages';
 
 export type { StageId } from '../../shared/stages';
 
@@ -242,28 +242,80 @@ export const activities = sqliteTable(
 
 /* ------------------------------------------------------------------ Hosting & Wartung */
 
+/**
+ * Hosting-, Wartungs- und Supportverträge. Abgerechnet wird im Voraus am
+ * Monatsersten; ein Beginn mitten im Monat wird anteilig berechnet (shared/billing.ts).
+ */
 export const contracts = sqliteTable('contracts', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	customerId: integer('customer_id')
 		.notNull()
 		.references(() => customers.id, { onDelete: 'restrict' }),
 	projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+	kind: text('kind', { enum: CONTRACT_KIND_IDS }).notNull().default('hosting'),
 	title: text('title').notNull(),
+	/** interne Notiz – was auf der Rechnung steht, kommt aus den Positionen */
 	description: text('description'),
+	/** Summe der Positionen je Abrechnungszeitraum (netto) – wird beim Speichern berechnet */
 	amountCents: integer('amount_cents').notNull(),
 	interval: text('interval', { enum: ['monat', 'quartal', 'halbjahr', 'jahr'] })
 		.notNull()
 		.default('monat'),
 	startDate: text('start_date').notNull(),
+	/** letzter Tag des Vertrags (bei Kündigung) */
 	endDate: text('end_date'),
 	/** nächster Abrechnungszeitraum beginnt an diesem Tag */
 	nextInvoiceDate: text('next_invoice_date').notNull(),
-	/** Rechnungsentwurf automatisch anlegen */
+	/** Rechnungen automatisch anlegen */
 	autoInvoice: bool('auto_invoice').notNull().default(true),
+	/** zusätzlich festschreiben und per E-Mail an den Kunden senden (sonst bleibt es beim Entwurf) */
+	autoSend: bool('auto_send').notNull().default(false),
+	/** Mindestlaufzeit in Monaten ab Beginn */
+	minTermMonths: integer('min_term_months'),
+	/** Kündigungsfrist in Monaten, jeweils zum Monatsende */
+	noticeMonths: integer('notice_months'),
+	/** Kündigung eingegangen am */
+	cancelledOn: text('cancelled_on'),
 	active: bool('active').notNull().default(true),
 	createdAt: created(),
 	updatedAt: updated()
 });
+
+/** Positionen eines Vertrags – erscheinen so auf jeder Rechnung */
+export const contractItems = sqliteTable(
+	'contract_items',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		contractId: integer('contract_id')
+			.notNull()
+			.references(() => contracts.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull().default(0),
+		title: text('title').notNull(),
+		description: text('description'),
+		quantity: real('quantity').notNull().default(1),
+		unit: text('unit').notNull().default('Pauschale'),
+		/** Preis je Abrechnungszeitraum (netto) */
+		unitPriceCents: integer('unit_price_cents').notNull().default(0)
+	},
+	(t) => [index('contract_items_contract_idx').on(t.contractId)]
+);
+
+/** Welcher Zeitraum eines Vertrags mit welcher Rechnung abgerechnet wurde */
+export const contractBillings = sqliteTable(
+	'contract_billings',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		contractId: integer('contract_id')
+			.notNull()
+			.references(() => contracts.id, { onDelete: 'cascade' }),
+		documentId: integer('document_id').references((): AnySQLiteColumn => documents.id, { onDelete: 'set null' }),
+		periodFrom: text('period_from').notNull(),
+		periodTo: text('period_to').notNull(),
+		amountCents: integer('amount_cents').notNull(),
+		createdAt: created()
+	},
+	(t) => [index('contract_billings_contract_idx').on(t.contractId, t.periodFrom)]
+);
 
 export const domains = sqliteTable('domains', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -494,6 +546,8 @@ export type FileRow = typeof files.$inferSelect;
 export type Credential = typeof credentials.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
 export type Contract = typeof contracts.$inferSelect;
+export type ContractItem = typeof contractItems.$inferSelect;
+export type ContractBilling = typeof contractBillings.$inferSelect;
 export type Domain = typeof domains.$inferSelect;
 export type Monitor = typeof monitors.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
