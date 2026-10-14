@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { and, asc, eq, inArray, lte, max, sql } from 'drizzle-orm';
@@ -6,8 +7,10 @@ import { documentNumber } from '$lib/shared/numbers';
 import { logActivity, notify } from './activity';
 import { db, DOCS_DIR } from './db';
 import { customers, documentItems, documents, sequences, timeEntries, type DocumentItem, type DocumentRow } from './db/schema';
+import { quoteResponses } from './db/site';
 import { renderPdf } from './pdf';
 import { getSetting } from './settings';
+import { websiteUrl } from './website';
 
 /**
  * Angebote und Rechnungen.
@@ -200,6 +203,31 @@ export async function reopenDocument(id: number): Promise<void> {
 		title: `${typeLabel(doc.type)} ${doc.number} zur Bearbeitung geöffnet${archived ? ` (verschickte Fassung archiviert: ${archived})` : ''}`,
 		meta: { documentId: id }
 	});
+}
+
+/**
+ * Link für den Kunden: Angebot auf der Webseite ansehen, annehmen oder Änderungen
+ * anfragen (astronox.dev/angebot/…). Entsteht beim ersten Festschreiben.
+ */
+export async function quoteLink(doc: Pick<DocumentRow, 'id' | 'type' | 'status' | 'publicToken'>): Promise<string | null> {
+	if (doc.type !== 'angebot') return null;
+	let token = doc.publicToken;
+	if (!token) {
+		if (doc.status === 'entwurf') return null;
+		token = randomBytes(18).toString('base64url');
+		await db.update(documents).set({ publicToken: token }).where(eq(documents.id, doc.id));
+	}
+	return `${websiteUrl()}/angebot/${token}`;
+}
+
+/** Zusagen und Änderungswünsche, die über den Link gekommen sind */
+export async function quoteAnswers(documentId: number) {
+	try {
+		return await db.select().from(quoteResponses).where(eq(quoteResponses.documentId, documentId)).orderBy(asc(quoteResponses.id));
+	} catch {
+		// Webseite noch ohne diese Tabelle
+		return [];
+	}
 }
 
 /** Warum ein Beleg nicht gelöscht werden darf – null heißt: darf */

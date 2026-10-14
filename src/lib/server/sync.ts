@@ -1,17 +1,19 @@
 import { and, asc, desc, eq, gt, inArray, isNotNull } from 'drizzle-orm';
 import type { Choice } from '$lib/shared/settings';
-import { dateTime } from '$lib/shared/format';
+import { dateTime, money } from '$lib/shared/format';
 import { logActivity, notify } from './activity';
 import { ensureCustomer } from './customers';
 import { db } from './db';
-import { projects } from './db/schema';
-import { bookings, inquiries } from './db/site';
-import { getSetting, setSetting } from './settings';
+import { customers, documents, projects } from './db/schema';
+import { bookings, inquiries, quoteResponses } from './db/site';
+import { advanceTo } from './projects';
+import { getSetting, setSetting, type SettingsMap } from './settings';
 
 /**
  * Holt neue Projektanfragen und Terminbuchungen von der Webseite ab.
  * Jede Anfrage wird zu Kunde + Projekt in der Phase „Anfrage“, jede Buchung
  * landet beim passenden Projekt (oder einem neuen) in der Phase „Erstgespräch“.
+ * Zusagen zu Angeboten über den Link setzen das Angebot auf „angenommen“.
  */
 
 const label = (list: Choice[], id: string) => list.find((x) => x.id === id)?.label ?? id;
@@ -143,10 +145,44 @@ export async function syncWebsite(): Promise<void> {
 		}
 		if (!cursor.cancelledAt) cursor.cancelledAt = new Date().toISOString();
 
+		await quoteAnswers(cursor);
+
 		if (JSON.stringify(cursor) !== before) await setSetting('sync', cursor);
 	} catch (err) {
 		console.error('[abgleich]', err);
 	} finally {
 		running = false;
+	}
+}
+
+/** Zusagen und Änderungswünsche zu Angeboten (Seite /angebot/… der Webseite) */
+async function quoteAnswers(cursor: SettingsMap['sync']) {
+	let rows: (typeof quoteResponses.$inferSelect)[];
+	try {
+		rows = await db.select().from(quoteResponses).where(gt(quoteResponses.id, cursor.quoteResponseId ?? 0)).orderBy(asc(quoteResponses.id)).limit(50);
+	} catch (err) {
+		// Webseite noch ohne diese Tabelle (älteres Image)
+		if (/no such table/i.test(`${err} ${(err as { cause?: unknown }).cause ?? ''}`)) return;
+		throw err;
+	}
+	for (const r of rows) {
+		const [d] = await db.select().from(documents).where(eq(documents.id, r.documentId));
+		if (d) {
+			const [c] = await db.select({ name: customers.name }).from(customers).where(eq(customers.id, d.customerId));
+			const who = c?.name ?? r.name;
+			const meta = { documentId: d.id };
+			if (r.kind === 'annahme') {
+				if (d.status === 'offen') {
+					await db.update(documents).set({ status: 'angenommen', decidedAt: r.createdAt, updatedAt: new Date().toISOString() }).where(eq(documents.id, d.id));
+					await advanceTo(d.projectId, 'auftrag');
+				}
+				await logActivity({ customerId: d.customerId, projectId: d.projectId, kind: 'angebot', title: `Angebot ${r.number} über den Link angenommen (${r.name})`, body: r.message, meta });
+				await notify({ kind: 'angebot', title: `Angebot angenommen: ${who}`, body: `${r.number} · ${money(d.grossCents)}`, url: `/rechnungen/${d.id}` });
+			} else {
+				await logActivity({ customerId: d.customerId, projectId: d.projectId, kind: 'angebot', title: `Änderungswunsch zu Angebot ${r.number} (${r.name})`, body: r.message, meta });
+				await notify({ kind: 'angebot', title: `Änderungswunsch: ${who}`, body: `${r.number}: ${(r.message ?? '').slice(0, 160)}`, url: `/rechnungen/${d.id}` });
+			}
+		}
+		cursor.quoteResponseId = r.id;
 	}
 }

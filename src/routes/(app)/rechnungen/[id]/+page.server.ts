@@ -7,7 +7,7 @@ import { primaryRecipient } from '$lib/server/customers';
 import { db } from '$lib/server/db';
 import { customers, documentItems, documents, mailMessages, projects } from '$lib/server/db/schema';
 import { siteContent } from '$lib/server/db/site';
-import { cancelInvoice, createDocument, deleteBlocker, deleteDocument, finalize, invoiceFromQuote, loadDocument, recalc, reopenDocument, typeLabel } from '$lib/server/documents';
+import { cancelInvoice, createDocument, deleteBlocker, deleteDocument, finalize, invoiceFromQuote, loadDocument, quoteAnswers, quoteLink, recalc, reopenDocument, typeLabel } from '$lib/server/documents';
 import { act, bad } from '$lib/server/forms';
 import { advanceTo } from '$lib/server/projects';
 import type { Actions, PageServerLoad } from './$types';
@@ -57,7 +57,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		cancels: d.cancelsId ? related.find((r) => r.id === d.cancelsId) : null,
 		cancelledBy: related.find((r) => r.cancelsId === d.id) ?? null
 	};
-	return { doc: d, items, customer, customers: allCustomers, projects: customerProjects, recipient, links, mails, packages: pkgs, deleteBlocker: deleteBlocker(d) };
+	const [quoteUrl, answers] = d.type === 'angebot' ? await Promise.all([quoteLink(d), quoteAnswers(d.id)]) : [null, []];
+	return { doc: d, items, customer, customers: allCustomers, projects: customerProjects, recipient, links, mails, packages: pkgs, deleteBlocker: deleteBlocker(d), quoteUrl, answers };
 };
 
 interface ItemInput {

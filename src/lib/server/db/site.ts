@@ -58,6 +58,17 @@ export const inquiries = sqliteTable('inquiries', {
 	createdAt: created()
 });
 
+/** Antworten auf Angebote über den Link auf der Webseite (astronox.dev/angebot/…) */
+export const quoteResponses = sqliteTable('quote_responses', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	documentId: integer('document_id').notNull(),
+	number: text('number').notNull(),
+	kind: text('kind', { enum: ['annahme', 'aenderung'] }).notNull(),
+	name: text('name').notNull(),
+	message: text('message'),
+	createdAt: created()
+});
+
 /** Besucherzählung: nur Summen je Tag und Pfad – keine IP, kein Cookie */
 export const pageViews = sqliteTable(
 	'page_views',

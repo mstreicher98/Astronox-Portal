@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
-import { LOGO_CID, mailLayout, mailSettings, paragraphsHtml } from '$lib/shared/mails';
+import { LOGO_CID, mailLayout, mailSettings, paragraphsHtml, plainText } from '$lib/shared/mails';
 import { logActivity } from './activity';
 import { db } from './db';
 import { mailMessages } from './db/schema';
@@ -88,12 +88,14 @@ export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: numb
 	const { footer } = await getMailSettings();
 	const messageId = `<${randomUUID()}@astronox.dev>`;
 	const now = new Date();
+	// Knöpfe ([Text](Link)) stehen in der Textfassung als „Text: Link“
+	const text = plainText(m.text);
 	const options = {
 		from: tp?.from ?? smtp.from,
 		to: m.to,
 		cc: m.cc || undefined,
 		subject: m.subject,
-		text: m.text,
+		text,
 		html: mailHtml(m.text, footer),
 		messageId,
 		date: now,
@@ -132,7 +134,7 @@ export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: numb
 			toAddrs: m.to,
 			ccAddrs: m.cc ?? null,
 			subject: m.subject,
-			text: m.text,
+			text,
 			date: now.toISOString(),
 			customerId: m.customerId ?? null,
 			projectId: m.projectId ?? null,

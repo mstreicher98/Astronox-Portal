@@ -61,7 +61,33 @@
 			]
 		},
 		absage_kunde: { button: 'https://astronox.dev/#kontakt' },
-		absage_info: {}
+		absage_info: {},
+		angebot_kunde: {
+			details: [
+				['Angebot', 'AN26 0001 – Neue Webseite'],
+				['Betrag', '€ 1.690,00'],
+				['Angenommen am', 'Montag, 2. November 2026, 17:42 Uhr'],
+				['Angenommen von', 'Erika Muster']
+			],
+			button: 'https://astronox.dev/angebot/beispiel'
+		},
+		angebot_info: {
+			details: [
+				['Angebot', 'AN26 0001 – Neue Webseite'],
+				['Betrag', '€ 1.690,00'],
+				['Angenommen von', 'Erika Muster'],
+				['Zeitpunkt', 'Montag, 2. November 2026, 17:42 Uhr'],
+				['Nachricht', 'Start gerne im Dezember.']
+			]
+		},
+		aenderung_info: {
+			details: [
+				['Angebot', 'AN26 0001 – Neue Webseite'],
+				['Betrag', '€ 1.690,00'],
+				['Von', 'Erika Muster'],
+				['Wünsche', 'Bitte noch eine Seite für Referenzen dazu und ohne Hosting.']
+			]
+		}
 	};
 	const preview = $derived(
 		renderMail(
@@ -73,6 +99,9 @@
 				datum: 'Montag, 2. November 2026',
 				art: 'Video-Call',
 				projekt: 'Neue Webseite',
+				nummer: 'AN26 0001',
+				titel: 'Neue Webseite',
+				betrag: '€ 1.690,00',
 				ablauf: fillPlaceholders(ab.video, { link: 'https://meet.example.com/astronox' })
 			},
 			blocks[mail.key],

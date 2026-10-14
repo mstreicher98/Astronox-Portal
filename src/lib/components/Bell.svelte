@@ -20,7 +20,7 @@
 		lastUnread = notifications.unread;
 	});
 
-	const icons: Record<string, typeof Bell> = { anfrage: MessageSquarePlus, termin: CalendarDays, mail: Mail, rechnung: FileText, monitor: ServerCrash, frist: TriangleAlert };
+	const icons: Record<string, typeof Bell> = { anfrage: MessageSquarePlus, termin: CalendarDays, mail: Mail, rechnung: FileText, angebot: FileText, monitor: ServerCrash, frist: TriangleAlert };
 
 	async function readAll() {
 		await fetch('/api/benachrichtigungen', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });

@@ -419,6 +419,8 @@ export const documents = sqliteTable(
 		remindedAt: text('reminded_at'),
 		/** festgeschriebenes PDF unter /data/portal/belege */
 		pdfFile: text('pdf_file'),
+		/** Angebote: geheimer Schlüssel für den Link auf der Webseite (astronox.dev/angebot/…) zum Annehmen oder Ändern */
+		publicToken: text('public_token').unique(),
 		createdAt: created(),
 		updatedAt: updated()
 	},

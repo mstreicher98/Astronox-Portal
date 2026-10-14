@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { ArrowDown, ArrowUp, Ban, CircleCheck, CircleX, Copy, Download, FileCheck2, GripVertical, Lock, Mail, Package, Pencil, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Ban, CircleCheck, CircleX, Copy, Download, ExternalLink, Link2, MessageSquareText, FileCheck2, GripVertical, Lock, Mail, Package, Pencil, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from '@lucide/svelte';
 	import { flip } from 'svelte/animate';
 	import { fly, slide } from 'svelte/transition';
 	import Compose from '$lib/components/Compose.svelte';
@@ -8,6 +8,7 @@
 	import { DOC_STATUS } from '$lib/shared/stages';
 	import { autosize, glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data } = $props();
 	const d = $derived(data.doc);
@@ -94,8 +95,18 @@
 		titel: d.title,
 		betrag: money(d.grossCents),
 		datum: d.dueDate ? date(d.dueDate) : '',
-		projekt: d.title
+		projekt: d.title,
+		link: data.quoteUrl ?? ''
 	});
+
+	async function copyLink() {
+		try {
+			await navigator.clipboard.writeText(data.quoteUrl ?? '');
+			toast('Link kopiert', 'ok');
+		} catch {
+			toast('Kopieren ging nicht – bitte den Link markieren', 'error');
+		}
+	}
 </script>
 
 <svelte:head><title>{label} {d.number ?? '(Entwurf)'} – Astronox Portal</title></svelte:head>
@@ -306,6 +317,30 @@
 						</div>
 					{/if}
 					{#if data.deleteBlocker && canEdit}<p class="small faint">{data.deleteBlocker}</p>{/if}
+				{/if}
+
+				{#if data.quoteUrl}
+					<hr class="divider" />
+					<div class="share">
+						<p class="small muted"><Link2 size={14} /> Link für den Kunden: ansehen, annehmen oder Änderungen anfragen</p>
+						<div class="row">
+							<input class="input" readonly value={data.quoteUrl} aria-label="Link zum Angebot" onfocus={(e) => e.currentTarget.select()} />
+							<button class="btn quiet icon sm" type="button" title="Link kopieren" aria-label="Link kopieren" onclick={copyLink}><Copy size={14} /></button>
+							<a class="btn quiet icon sm" href={data.quoteUrl} target="_blank" rel="noopener" title="So sieht es der Kunde" aria-label="Seite für den Kunden öffnen"><ExternalLink size={14} /></a>
+						</div>
+					</div>
+				{/if}
+				{#if data.answers.length}
+					<hr class="divider" />
+					<ul class="answers small">
+						{#each data.answers as a (a.id)}
+							<li class:yes={a.kind === 'annahme'}>
+								<span class="head">{#if a.kind === 'annahme'}<CircleCheck size={14} /> Angenommen{:else}<MessageSquareText size={14} /> Änderungswunsch{/if} von {a.name}</span>
+								<span class="faint">{dateTime(a.createdAt)}</span>
+								{#if a.message}<p class="prewrap">{a.message}</p>{/if}
+							</li>
+						{/each}
+					</ul>
 				{/if}
 
 				{#if data.links.quote || data.links.invoices.length || data.links.cancels || data.links.cancelledBy}
@@ -537,6 +572,65 @@
 	.paid .input {
 		flex: 1;
 		min-height: 2.5rem;
+	}
+
+	.share {
+		display: grid;
+		gap: 0.5rem;
+	}
+
+	.share p {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.share .row {
+		gap: 0.3rem;
+		flex-wrap: nowrap;
+	}
+
+	.share .input {
+		min-width: 0;
+		flex: 1;
+		font-size: 0.78rem;
+	}
+
+	.answers {
+		display: grid;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.answers li {
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--line-soft);
+		border-radius: 10px;
+	}
+
+	.answers li.yes {
+		border-color: rgb(var(--ok-rgb) / 0.4);
+		background: rgb(var(--ok-rgb) / 0.06);
+	}
+
+	.answers .head {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-weight: 600;
+	}
+
+	.answers li.yes .head {
+		color: var(--ok);
+	}
+
+	.answers p {
+		margin-top: 0.2rem;
+		color: var(--dust);
 	}
 
 	.links {

@@ -17,7 +17,8 @@
 		titel: 'Titel des Belegs',
 		betrag: 'Betrag',
 		zeitraum: 'Abrechnungszeitraum',
-		grund: 'Grund der Absage'
+		grund: 'Grund der Absage',
+		link: 'Link zum Angebot auf der Webseite (nur bei Angeboten)'
 	};
 </script>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAIL_DEFAULTS, mailSettings, paragraphsHtml, renderMail } from './mails';
+import { MAIL_DEFAULTS, mailSettings, paragraphsHtml, plainText, renderMail } from './mails';
 
 const opts = { footer: 'Astronox Development\noffice@astronox.dev · astronox.dev', logo: 'cid:logo@astronox.dev' };
 
@@ -33,6 +33,13 @@ describe('renderMail', () => {
 describe('paragraphsHtml', () => {
 	it('verlinkt Adressen ohne Satzzeichen am Ende', () => {
 		expect(paragraphsHtml('Buchen unter https://astronox.dev/#kontakt.')).toContain('href="https://astronox.dev/#kontakt"');
+	});
+
+	it('macht aus [Text](Link) in einem eigenen Absatz einen Knopf', () => {
+		const html = paragraphsHtml('Hallo\n\n[Angebot ansehen](https://astronox.dev/angebot/abc)\n\nGruß');
+		expect(html).toContain('<a href="https://astronox.dev/angebot/abc" style="display:inline-block');
+		expect(html).toContain('>Angebot ansehen</a>');
+		expect(plainText('Hallo\n\n[Angebot ansehen](https://astronox.dev/angebot/abc)')).toBe('Hallo\n\nAngebot ansehen: https://astronox.dev/angebot/abc');
 	});
 });
 

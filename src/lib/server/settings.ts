@@ -21,7 +21,7 @@ export interface SettingsMap {
 	mails: MailSettings;
 	monitor: MonitorSettings;
 	push: { publicKey: string; privateKey: string };
-	sync: { inquiryId: number; bookingId: number; cancelledAt: string };
+	sync: { inquiryId: number; bookingId: number; cancelledAt: string; quoteResponseId: number };
 	imapStand: { mailbox: string; uidValidity: string; lastUid: number; lastSync: string; lastError: string };
 	/** Letzter Lauf der täglichen Aufgaben (Sicherung, Abo-Rechnungen, Fristen) */
 	taeglich: { day: string };
@@ -67,7 +67,7 @@ export const DEFAULTS: { [K in keyof SettingsMap]: SettingsMap[K] } = {
 	imap: { enabled: false, host: '', port: 993, secure: true, user: '', password: '', mailbox: 'INBOX', sentMailbox: 'Sent' },
 	monitor: { warnDays: 21 },
 	push: { publicKey: '', privateKey: '' },
-	sync: { inquiryId: 0, bookingId: 0, cancelledAt: '' },
+	sync: { inquiryId: 0, bookingId: 0, cancelledAt: '', quoteResponseId: 0 },
 	imapStand: { mailbox: '', uidValidity: '', lastUid: 0, lastSync: '', lastError: '' },
 	taeglich: { day: '' }
 };

@@ -26,7 +26,10 @@ export const WEB_MAILS = [
 	{ key: 'termin_kunde', label: 'Terminbuchung – Bestätigung an den Kunden', fields: ['name', 'termin', 'datum', 'art', 'ablauf', 'details', 'knopf'] },
 	{ key: 'termin_info', label: 'Terminbuchung – Hinweis an dich', fields: ['name', 'termin', 'details'] },
 	{ key: 'absage_kunde', label: 'Terminabsage – an den Kunden', fields: ['name', 'termin', 'knopf'] },
-	{ key: 'absage_info', label: 'Terminabsage – Hinweis an dich', fields: ['name', 'email', 'termin'] }
+	{ key: 'absage_info', label: 'Terminabsage – Hinweis an dich', fields: ['name', 'email', 'termin'] },
+	{ key: 'angebot_kunde', label: 'Angebot angenommen – Bestätigung an den Kunden', fields: ['name', 'nummer', 'titel', 'betrag', 'details', 'knopf'] },
+	{ key: 'angebot_info', label: 'Angebot angenommen – Hinweis an dich', fields: ['name', 'nummer', 'titel', 'betrag', 'details'] },
+	{ key: 'aenderung_info', label: 'Änderungswunsch zum Angebot – Hinweis an dich', fields: ['name', 'nummer', 'titel', 'betrag', 'details'] }
 ] as const;
 
 export type WebMailKey = (typeof WEB_MAILS)[number]['key'];
@@ -76,6 +79,22 @@ export const MAIL_DEFAULTS: MailSettings = {
 			subject: 'Termin abgesagt: {{name}} – {{termin}}',
 			heading: 'Termin abgesagt',
 			body: '{{name}} ({{email}}) hat den Termin am {{termin}} abgesagt.'
+		},
+		angebot_kunde: {
+			subject: 'Ihre Zusage zum Angebot {{nummer}}',
+			heading: 'Vielen Dank für Ihre Zusage',
+			body: `Guten Tag {{name}},\n\nvielen Dank für Ihr Vertrauen! Sie haben mein Angebot {{nummer}} über {{betrag}} angenommen. Ich melde mich in Kürze mit den nächsten Schritten.\n\n{{details}}\n\n{{knopf}}\n\n${GRUSS}`,
+			button: 'Angebot ansehen'
+		},
+		angebot_info: {
+			subject: 'Angebot {{nummer}} angenommen – {{name}}',
+			heading: 'Angebot angenommen',
+			body: '{{name}} hat das Angebot {{nummer}} über {{betrag}} über den Link angenommen.\n\n{{details}}'
+		},
+		aenderung_info: {
+			subject: 'Änderungswunsch zum Angebot {{nummer}} – {{name}}',
+			heading: 'Änderungswunsch zum Angebot',
+			body: '{{name}} wünscht Änderungen am Angebot {{nummer}} ({{titel}}):\n\n{{details}}'
 		}
 	},
 	ablauf: {
@@ -115,14 +134,38 @@ function linkify(html: string, color: string, bareDomains = false): string {
 
 const P = 'margin:0 0 14px;font-size:15px;line-height:1.6';
 
+const buttonHtml = (href: string, label: string) =>
+	`<p style="margin:6px 0 18px"><a href="${esc(href)}" style="display:inline-block;background:#5eead4;background-image:linear-gradient(115deg,#5eead4,#8f9bff 52%,#f472b6);color:#0c1430;text-decoration:none;font-weight:bold;padding:11px 18px;border-radius:999px;font-size:14px">${esc(label)}</a></p>`;
+
+/** Ein Absatz, der nur aus [Beschriftung](https://…) besteht, wird zum Knopf */
+const BUTTON = /^\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)$/;
+
+function paragraphHtml(p: string): string {
+	const b = BUTTON.exec(p);
+	if (b) return buttonHtml(b[2], b[1]);
+	return `<p style="${P}">${linkify(esc(p), '#3b4bd8').replace(/\n/g, '<br>')}</p>`;
+}
+
+const paragraphs = (text: string) =>
+	text
+		.trim()
+		.split(/\n\s*\n/)
+		.map((p) => p.trim())
+		.filter(Boolean);
+
 /** Text mit Leerzeilen als Absätze setzen (Mails aus dem Portal) */
 export function paragraphsHtml(text: string): string {
-	return text
-		.trim()
-		.split(/\n{2,}/)
-		.filter((p) => p.trim())
-		.map((p) => `<p style="${P}">${linkify(esc(p.trim()), '#3b4bd8').replace(/\n/g, '<br>')}</p>`)
-		.join('');
+	return paragraphs(text).map(paragraphHtml).join('');
+}
+
+/** Textfassung derselben Mail: Knöpfe werden zu „Beschriftung: Link“ */
+export function plainText(text: string): string {
+	return paragraphs(text)
+		.map((p) => {
+			const b = BUTTON.exec(p);
+			return b ? `${b[1]}: ${b[2]}` : p;
+		})
+		.join('\n\n');
 }
 
 export type DetailRows = [string, string | null | undefined][];
@@ -142,9 +185,6 @@ const detailsText = (rows: DetailRows) =>
 		.filter((r) => !!r[1])
 		.map(([k, v]) => `${k}: ${v}`)
 		.join('\n');
-
-const buttonHtml = (href: string, label: string) =>
-	`<p style="margin:6px 0 18px"><a href="${esc(href)}" style="display:inline-block;background:#5eead4;background-image:linear-gradient(115deg,#5eead4,#8f9bff 52%,#f472b6);color:#0c1430;text-decoration:none;font-weight:bold;padding:11px 18px;border-radius:999px;font-size:14px">${esc(label)}</a></p>`;
 
 /** Rahmen jeder Mail: Kopf mit Logo, Inhalt, Fußzeile. `logo` ist `cid:…` beim Versand, eine Daten-URL in der Vorschau */
 export function mailLayout(bodyHtml: string, opts: { heading?: string; footer: string; logo: string }): string {
@@ -189,8 +229,8 @@ export function renderMail(
 		} else {
 			const filled = fillPlaceholders(p, values).trim();
 			if (!filled) continue;
-			html.push(`<p style="${P}">${linkify(esc(filled), '#3b4bd8').replace(/\n/g, '<br>')}</p>`);
-			text.push(filled);
+			html.push(paragraphHtml(filled));
+			text.push(plainText(filled));
 		}
 	}
 	const footer = opts.footer.trim();

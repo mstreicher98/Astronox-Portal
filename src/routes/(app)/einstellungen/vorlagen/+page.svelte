@@ -50,7 +50,7 @@
 			<h2><Mail size={17} /> Vorlagen im Portal</h2>
 			<button class="btn ghost sm" type="button" onclick={() => (newMail = !newMail)}><Plus size={14} /> Vorlage</button>
 		</div>
-		<p class="small muted">Für Angebote, Rechnungen, Erinnerungen, Terminabsagen und beim Schreiben einer Mail im Portal. Vor dem Senden lässt sich jede Mail noch anpassen.</p>
+		<p class="small muted">Für Angebote, Rechnungen, Erinnerungen, Terminabsagen und beim Schreiben einer Mail im Portal. Vor dem Senden lässt sich jede Mail noch anpassen. Ein eigener Absatz <code>[Beschriftung](Link)</code> wird zum Knopf – z. B. <code>{'[Angebot ansehen und antworten]({{link}})'}</code>.</p>
 		{#if newMail}
 			<div class="tpl"><Template {footer} ondone={() => (newMail = false)} /></div>
 		{/if}

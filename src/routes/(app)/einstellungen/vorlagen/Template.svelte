@@ -23,7 +23,7 @@
 	let body = $state(init.body);
 	let area = $state<HTMLTextAreaElement>();
 
-	const FIELDS = ['anrede', 'name', 'projekt', 'nummer', 'titel', 'betrag', 'datum', 'zeitraum', 'grund'];
+	const FIELDS = ['anrede', 'name', 'projekt', 'nummer', 'titel', 'betrag', 'datum', 'zeitraum', 'grund', 'link'];
 	// Beispieldaten für die Vorschau
 	const values = {
 		anrede: 'Guten Tag Erika Muster,',
@@ -34,7 +34,8 @@
 		betrag: '€ 1.690,00',
 		datum: init.key === 'terminabsage' ? '02.11.2026, 17:00' : '14.11.2026',
 		zeitraum: 'November 2026',
-		grund: init.key === 'terminabsage' ? 'Mir ist leider kurzfristig etwas dazwischengekommen.' : ''
+		grund: init.key === 'terminabsage' ? 'Mir ist leider kurzfristig etwas dazwischengekommen.' : '',
+		link: 'https://astronox.dev/angebot/beispiel'
 	};
 	const preview = $derived({
 		subject: fillPlaceholders(subject, values),

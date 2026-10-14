@@ -4,11 +4,24 @@ import { checklistTemplates, mailTemplates } from './db/schema';
 
 /**
  * Startwerte beim ersten Start: Mail-Vorlagen und eine Launch-Checkliste.
- * Platzhalter in Vorlagen: {{anrede}}, {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}, {{zeitraum}}, {{grund}}.
+ * Platzhalter in Vorlagen: {{anrede}}, {{name}}, {{nummer}}, {{titel}}, {{betrag}}, {{datum}}, {{projekt}}, {{zeitraum}}, {{grund}}, {{link}}.
+ * Ein Absatz [Beschriftung](Link) wird in der Mail zum Knopf.
  */
 
 /** Vorlagen, die das Portal selbst verschickt – lassen sich ändern, aber nicht löschen */
 export const FIXED_TEMPLATES = ['angebot', 'rechnung', 'mahnung', 'vertragsrechnung', 'terminabsage'];
+
+/** Kern der Angebots-Mail mit Knopf zum Annehmen oder Ändern (Seite auf der Webseite) */
+const QUOTE_TEXT = `vielen Dank für das angenehme Gespräch. Wie besprochen sende ich Ihnen im Anhang mein Angebot {{nummer}} über {{betrag}}.
+
+Das Angebot ist bis {{datum}} gültig. Über den Knopf können Sie es direkt annehmen oder mir schreiben, was ich noch ändern soll:
+
+[Angebot ansehen und antworten]({{link}})`;
+
+/** Bisheriger Text – wird beim Start durch QUOTE_TEXT ersetzt, solange er unverändert ist */
+const OLD_QUOTE_TEXT = `vielen Dank für das angenehme Gespräch. Wie besprochen sende ich Ihnen im Anhang mein Angebot {{nummer}} über {{betrag}}.
+
+Das Angebot ist bis {{datum}} gültig. Wenn alles passt, genügt eine kurze Antwort auf diese Mail – dann lege ich los.`;
 
 const TEMPLATES = [
 	{
@@ -30,9 +43,7 @@ Matthias Streicher`
 		subject: 'Angebot {{nummer}} – {{titel}}',
 		body: `{{anrede}}
 
-vielen Dank für das angenehme Gespräch. Wie besprochen sende ich Ihnen im Anhang mein Angebot {{nummer}} über {{betrag}}.
-
-Das Angebot ist bis {{datum}} gültig. Wenn alles passt, genügt eine kurze Antwort auf diese Mail – dann lege ich los.
+${QUOTE_TEXT}
 
 Viele Grüße
 Matthias Streicher`
@@ -121,6 +132,14 @@ export async function seedPortal() {
 	const [anyTemplate] = await db.select({ id: mailTemplates.id }).from(mailTemplates).limit(1);
 	if (!anyTemplate) await db.insert(mailTemplates).values(TEMPLATES);
 	else {
+		// Angebots-Mail mit Knopf zum Annehmen – nur, wenn der alte Standardtext noch unverändert ist
+		const [quote] = await db.select().from(mailTemplates).where(eq(mailTemplates.key, 'angebot')).limit(1);
+		if (quote?.body.includes(OLD_QUOTE_TEXT)) {
+			await db
+				.update(mailTemplates)
+				.set({ body: quote.body.replace(OLD_QUOTE_TEXT, QUOTE_TEXT), updatedAt: new Date().toISOString() })
+				.where(eq(mailTemplates.id, quote.id));
+		}
 		// später hinzugekommene Vorlagen, die das Portal selbst braucht
 		for (const key of ['vertragsrechnung', 'terminabsage']) {
 			const [found] = await db.select({ id: mailTemplates.id }).from(mailTemplates).where(eq(mailTemplates.key, key)).limit(1);
