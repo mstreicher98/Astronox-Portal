@@ -44,8 +44,8 @@
 		top: 50%;
 		width: min(150vmin, 1200px);
 		aspect-ratio: 1;
-		translate: -50% -50%;
-		transform: rotateX(68deg) rotateZ(-18deg);
+		/* Verschiebung bewusst in transform: Lightning CSS verwirft beim Bauen ein separates translate neben festen transform-Werten */
+		transform: translate(-50%, -50%) rotateX(68deg) rotateZ(-18deg);
 		transform-style: preserve-3d;
 		pointer-events: none;
 	}
