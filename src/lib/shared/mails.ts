@@ -192,7 +192,7 @@ export function mailLayout(bodyHtml: string, opts: { heading?: string; footer: s
 	return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head><body style="margin:0;background:#eef0f6;font-family:Helvetica,Arial,sans-serif;color:#141a33">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden">
-<tr><td style="background:#0c1430;padding:20px 28px"><img src="${opts.logo}" width="260" height="32" alt="Astronox Development" style="display:block;border:0;outline:none;width:260px;max-width:100%;height:auto;color:#f3eee2;font-size:18px;font-weight:bold"></td></tr>
+<tr><td style="background:#0c1430;padding:20px 28px"><img src="${opts.logo}" width="260" height="35" alt="Astronox Development" style="display:block;border:0;outline:none;width:260px;max-width:100%;height:auto;color:#f3eee2;font-size:18px;font-weight:bold"></td></tr>
 <tr><td style="padding:28px 28px 12px">${opts.heading ? `<h1 style="margin:0 0 16px;font-size:21px;line-height:1.3">${esc(opts.heading)}</h1>` : ''}${bodyHtml}</td></tr>
 ${footer ? `<tr><td style="padding:16px 28px 28px;color:#5d6485;font-size:13px;line-height:1.5">${footer}</td></tr>` : ''}
 </table></td></tr></table></body></html>`;

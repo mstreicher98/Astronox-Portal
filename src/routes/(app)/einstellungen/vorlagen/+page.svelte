@@ -23,7 +23,7 @@
 <div class="mail-texts stack">
 	<div class="card stack" use:glow>
 		<h2><Palette size={17} /> Aussehen</h2>
-		<div class="logo"><img src={logo} alt="Astronox Development" width="260" height="32" /></div>
+		<div class="logo"><img src={logo} alt="Astronox Development" width="260" height="35" /></div>
 		<p class="small muted">Das Logo steht im Kopf jeder Mail – von der Webseite und aus dem Portal. Es hängt eingebettet an der Mail und erscheint ohne „Bilder laden“.</p>
 		<form method="POST" action="?/fusszeile" class="stack" use:enhance={submit()}>
 			<label class="field">

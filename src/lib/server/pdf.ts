@@ -76,20 +76,34 @@ export function renderPdf(input: PdfInput): Promise<Buffer> {
 	bar.stop(0, C.teal).stop(0.52, C.nebula).stop(1, C.pink);
 	pdf.rect(0, 0, W, 5).fill(bar);
 
-	// Bildmarke: Stern mit Umlaufbahn
+	// Bildmarke wie Mark.svelte: Stern mit drei auslaufenden Bahnen und Planeten – auf Papier mit dunklen Bahnen
 	const markX = L;
 	const markY = mm(14);
+	const orbits: [number, number, number, number][] = [
+		[27.5, 9.8, 1.1, -1],
+		[21, 7.5, 1.4, 1],
+		[14.5, 5.2, 1.2, -1]
+	];
+	const arcs = (dir: 1 | -1, opacity: number) => {
+		for (const [rx, ry, w, side] of orbits) {
+			const fade = pdf.linearGradient(24 + side * rx, 24, 24 - side * rx, 24);
+			fade.stop(0, C.muted, opacity).stop(0.5, C.muted, opacity * 0.55).stop(0.92, C.muted, 0);
+			pdf.path(`M${24 - dir * rx} 24A${rx} ${ry} 0 0 1 ${24 + dir * rx} 24`).lineWidth(w).lineCap('round').stroke(fade);
+		}
+	};
 	pdf.save();
 	pdf.translate(markX, markY).scale(36 / 48);
 	pdf.save().rotate(-24, { origin: [24, 24] });
-	pdf.path('M3 24 A21 7.5 0 0 1 45 24').lineWidth(2.2).strokeOpacity(0.55).stroke(C.violet);
+	arcs(1, 0.4);
+	pdf.circle(-1.84, 20.65, 2.4).fill(C.pink);
 	pdf.restore();
 	const g = pdf.linearGradient(0, 0, 48, 48);
 	g.stop(0, C.teal).stop(0.52, C.nebula).stop(1, C.pink);
 	pdf.path(STAR).fill(g);
 	pdf.save().rotate(-24, { origin: [24, 24] });
-	pdf.path('M45 24 A21 7.5 0 0 1 3 24').lineWidth(2.2).strokeOpacity(1).stroke(C.violet);
-	pdf.circle(38.85, 29.3, 3.1).lineWidth(1.6).fillAndStroke(C.night, '#ffffff');
+	arcs(-1, 0.9);
+	pdf.circle(38.85, 29.3, 3.1).lineWidth(1.6).fillAndStroke(C.violet, '#ffffff');
+	pdf.circle(16.75, 28.5, 2).lineWidth(1.2).fillAndStroke(C.teal, '#ffffff');
 	pdf.restore();
 	pdf.restore();
 
