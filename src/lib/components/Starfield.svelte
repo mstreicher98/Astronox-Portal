@@ -1,12 +1,28 @@
 <script lang="ts">
 	/**
 	 * Sternenhimmel hinter dem ganzen Portal: Sterne in drei Tiefen, die der Maus
-	 * leicht folgen, langsam ziehende Nebel und ab und zu eine Sternschnuppe.
-	 * Läuft mit etwa 30 Bildern pro Sekunde und pausiert, wenn der Tab im
-	 * Hintergrund ist. Bei „weniger Bewegung“ wird einmal still gezeichnet.
+	 * leicht folgen, langsam ziehende Nebel und Sternschnuppen – im Portal selten,
+	 * mit `showers` (Anmeldung) alle paar Sekunden, bis zu drei gleichzeitig.
+	 * Läuft mit etwa 30 Bildern pro Sekunde (flüssig, solange eine Sternschnuppe
+	 * fliegt) und pausiert, wenn der Tab im Hintergrund ist. Bei „weniger
+	 * Bewegung“ wird einmal still gezeichnet.
 	 */
-	let { density = 1 }: { density?: number } = $props();
+	let { density = 1, showers = false }: { density?: number; showers?: boolean } = $props();
 	let canvas: HTMLCanvasElement;
+
+	interface Shooting {
+		x: number;
+		y: number;
+		dx: number;
+		dy: number;
+		/** px/ms */
+		speed: number;
+		len: number;
+		width: number;
+		color: string;
+		age: number;
+		duration: number;
+	}
 
 	interface Star {
 		x: number;
@@ -34,8 +50,11 @@
 		let py = 0;
 		let tx = 0;
 		let ty = 0;
-		let shoot: { x: number; y: number; vx: number; vy: number; life: number } | null = null;
-		let nextShoot = performance.now() + 4000 + Math.random() * 6000;
+		let shooting: Shooting[] = [];
+		let nextShoot = performance.now() + (showers ? 700 : 4000) + Math.random() * (showers ? 1500 : 6000);
+		let lastShoot = 0;
+		/** Polarlicht, Nebel, Pulsar, Sternenlicht */
+		const trails = ['200 245 238', '205 210 255', '252 200 225', '243 238 226'];
 
 		const colors = ['243 238 226', '243 238 226', '243 238 226', '160 240 228', '190 198 255', '250 170 210'];
 		const nebulae = [
@@ -64,6 +83,56 @@
 					hue: colors[Math.floor(Math.random() * colors.length)]
 				};
 			});
+		}
+
+		function spawn() {
+			const toRight = Math.random() < 0.5;
+			const angle = ((14 + Math.random() * 26) * Math.PI) / 180;
+			shooting.push({
+				x: toRight ? Math.random() * w * 0.7 : w * (0.3 + Math.random() * 0.7),
+				y: Math.random() * h * 0.55,
+				dx: Math.cos(angle) * (toRight ? 1 : -1),
+				dy: Math.sin(angle),
+				speed: 0.55 + Math.random() * 0.6,
+				len: 90 + Math.random() * 150,
+				width: 1 + Math.random() * 0.9,
+				color: trails[Math.floor(Math.random() * trails.length)],
+				age: 0,
+				duration: 650 + Math.random() * 800
+			});
+		}
+
+		function drawShooting(dt: number) {
+			for (const sh of shooting) {
+				sh.age += dt;
+				sh.x += sh.dx * sh.speed * dt;
+				sh.y += sh.dy * sh.speed * dt;
+				const p = sh.age / sh.duration;
+				// schnell auf, langsam aus
+				const alpha = p < 0.15 ? p / 0.15 : Math.max(0, 1 - (p - 0.15) / 0.85);
+				const len = sh.len * Math.min(1, p * 4);
+				const tailX = sh.x - sh.dx * len;
+				const tailY = sh.y - sh.dy * len;
+				const g = ctx!.createLinearGradient(sh.x, sh.y, tailX, tailY);
+				g.addColorStop(0, `rgb(${sh.color} / ${0.95 * alpha})`);
+				g.addColorStop(0.25, `rgb(${sh.color} / ${0.45 * alpha})`);
+				g.addColorStop(1, `rgb(${sh.color} / 0)`);
+				ctx!.strokeStyle = g;
+				ctx!.lineWidth = sh.width;
+				ctx!.lineCap = 'round';
+				ctx!.beginPath();
+				ctx!.moveTo(sh.x, sh.y);
+				ctx!.lineTo(tailX, tailY);
+				ctx!.stroke();
+				const head = ctx!.createRadialGradient(sh.x, sh.y, 0, sh.x, sh.y, sh.width * 4);
+				head.addColorStop(0, `rgb(255 255 255 / ${0.9 * alpha})`);
+				head.addColorStop(1, `rgb(${sh.color} / 0)`);
+				ctx!.fillStyle = head;
+				ctx!.beginPath();
+				ctx!.arc(sh.x, sh.y, sh.width * 4, 0, Math.PI * 2);
+				ctx!.fill();
+			}
+			shooting = shooting.filter((sh) => sh.age < sh.duration && sh.x > -300 && sh.x < w + 300 && sh.y < h + 100);
 		}
 
 		function draw(t: number) {
@@ -104,36 +173,25 @@
 			}
 			if (still) return;
 
-			if (!shoot && t > nextShoot) {
-				const fromLeft = Math.random() < 0.5;
-				shoot = { x: fromLeft ? Math.random() * w * 0.5 : w * (0.5 + Math.random() * 0.5), y: Math.random() * h * 0.35, vx: fromLeft ? 8 : -8, vy: 3, life: 1 };
-				nextShoot = t + 9000 + Math.random() * 12000;
+			// Anmeldung: alle 1,5–4,5 s, manchmal zwei kurz hintereinander · Portal: alle 9–21 s
+			if (t > nextShoot && shooting.length < (showers ? 3 : 1)) {
+				spawn();
+				nextShoot = showers ? t + (Math.random() < 0.2 ? 250 + Math.random() * 400 : 1500 + Math.random() * 3000) : t + 9000 + Math.random() * 12000;
 			}
-			if (shoot) {
-				const len = 14;
-				const g = ctx!.createLinearGradient(shoot.x, shoot.y, shoot.x - shoot.vx * len, shoot.y - shoot.vy * len);
-				g.addColorStop(0, `rgb(200 245 238 / ${0.85 * shoot.life})`);
-				g.addColorStop(1, 'rgb(200 245 238 / 0)');
-				ctx!.strokeStyle = g;
-				ctx!.lineWidth = 1.3;
-				ctx!.beginPath();
-				ctx!.moveTo(shoot.x, shoot.y);
-				ctx!.lineTo(shoot.x - shoot.vx * len, shoot.y - shoot.vy * len);
-				ctx!.stroke();
-				shoot.x += shoot.vx;
-				shoot.y += shoot.vy;
-				shoot.life -= 0.016;
-				if (shoot.life <= 0 || shoot.x < -200 || shoot.x > w + 200 || shoot.y > h) shoot = null;
-			}
+			// nach einer Pause (Tab im Hintergrund) nicht springen
+			const dt = lastShoot ? Math.min(50, t - lastShoot) : 16;
+			lastShoot = t;
+			drawShooting(dt);
 		}
 
 		function loop(t: number) {
-			// etwa 30 Bilder pro Sekunde reichen für den Himmel und schonen den Akku
-			if (t - last > 32) {
+			// etwa 30 Bilder pro Sekunde reichen für den Himmel und schonen den Akku – Sternschnuppen flüssig
+			if (t - last > 32 || shooting.length) {
 				draw(t);
 				last = t;
 			}
 			raf = document.hidden ? 0 : requestAnimationFrame(loop);
+			if (!raf) lastShoot = 0;
 		}
 
 		const start = () => {

@@ -65,22 +65,22 @@
 	box-sizing: border-box;
 }
 
+/* Hintergrund am html-Element – liegt so unter dem Sternenhimmel (Canvas mit z-index -1) */
 html {
 	-webkit-text-size-adjust: 100%;
 	text-size-adjust: 100%;
-	background: var(--night-0);
-	scrollbar-color: var(--line) transparent;
-}
-
-body {
-	margin: 0;
-	min-height: 100svh;
 	background:
 		radial-gradient(ellipse 60% 45% at 85% -5%, rgb(143 155 255 / 0.16), transparent 70%),
 		radial-gradient(ellipse 45% 40% at 0% 100%, rgb(var(--accent-rgb) / 0.09), transparent 70%),
 		radial-gradient(ellipse 40% 35% at 60% 110%, rgb(var(--pink-rgb) / 0.08), transparent 70%),
 		var(--night);
 	background-attachment: fixed;
+	scrollbar-color: var(--line) transparent;
+}
+
+body {
+	margin: 0;
+	min-height: 100svh;
 	color: var(--star);
 	font-family: var(--font-body);
 	font-size: 0.9375rem;
