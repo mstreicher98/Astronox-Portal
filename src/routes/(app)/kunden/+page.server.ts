@@ -6,6 +6,13 @@ import { activities, contacts, customers, documents, projects } from '$lib/serve
 import { act } from '$lib/server/forms';
 import type { Actions, PageServerLoad } from './$types';
 
+/**
+ * Spalte des Kunden für die Unterabfragen – ausdrücklich mit Tabellennamen: Drizzle schreibt
+ * Spalten ohne Tabelle, solange die äußere Abfrage nur eine Tabelle hat. Dann wäre "id" in
+ * der Unterabfrage deren eigene id (alle Kunden bekamen dieselbe Ansprechperson).
+ */
+const customerId = sql`${customers}.${sql.identifier('id')}`;
+
 export const load: PageServerLoad = async ({ url }) => {
 	const archiv = url.searchParams.get('filter') === 'archiv';
 	const rows = await db
@@ -18,11 +25,11 @@ export const load: PageServerLoad = async ({ url }) => {
 			city: customers.city,
 			source: customers.source,
 			createdAt: customers.createdAt,
-			openProjects: sql<number>`(select count(*) from ${projects} where ${projects.customerId} = ${customers.id} and ${projects.stage} not in ('abgeschlossen', 'verloren') and ${projects.archivedAt} is null)`,
-			won: sql<number>`(select count(*) from ${projects} where ${projects.customerId} = ${customers.id} and ${projects.stage} in ('auftrag', 'in_arbeit', 'abnahme', 'abgeschlossen'))`,
-			revenue: sql<number>`(select coalesce(sum(${documents.netCents}), 0) from ${documents} where ${documents.customerId} = ${customers.id} and ${documents.type} = 'rechnung' and ${documents.status} in ('offen', 'bezahlt'))`,
-			lastActivity: sql<string | null>`(select max(${activities.createdAt}) from ${activities} where ${activities.customerId} = ${customers.id})`,
-			contact: sql<string | null>`(select ${contacts.name} from ${contacts} where ${contacts.customerId} = ${customers.id} order by ${contacts.isPrimary} desc limit 1)`
+			openProjects: sql<number>`(select count(*) from ${projects} where ${projects.customerId} = ${customerId} and ${projects.stage} not in ('abgeschlossen', 'verloren') and ${projects.archivedAt} is null)`,
+			won: sql<number>`(select count(*) from ${projects} where ${projects.customerId} = ${customerId} and ${projects.stage} in ('auftrag', 'in_arbeit', 'abnahme', 'abgeschlossen'))`,
+			revenue: sql<number>`(select coalesce(sum(${documents.netCents}), 0) from ${documents} where ${documents.customerId} = ${customerId} and ${documents.type} = 'rechnung' and ${documents.status} in ('offen', 'bezahlt'))`,
+			lastActivity: sql<string | null>`(select max(${activities.createdAt}) from ${activities} where ${activities.customerId} = ${customerId})`,
+			contact: sql<string | null>`(select ${contacts.name} from ${contacts} where ${contacts.customerId} = ${customerId} order by ${contacts.isPrimary} desc limit 1)`
 		})
 		.from(customers)
 		.where(archiv ? isNotNull(customers.archivedAt) : isNull(customers.archivedAt))
