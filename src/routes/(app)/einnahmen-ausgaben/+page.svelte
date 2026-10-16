@@ -179,7 +179,7 @@
 					{/if}
 				</table>
 			</div>
-			<p class="small faint pad">Kennzahlen zur Orientierung beim Ausfüllen der Beilage E1a – vor dem Einreichen mit der Steuerberatung abgleichen.</p>
+			<p class="small faint pad">Kennzahlen laut Beilage E 1a 2025 – sie ändern sich gelegentlich, daher jedes Jahr mit dem aktuellen Formular bzw. der Steuerberatung abgleichen.</p>
 		</div>
 	{:else if data.tab === 'buchungen'}
 		<div class="row wrap bar">

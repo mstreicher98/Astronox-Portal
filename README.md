@@ -105,7 +105,7 @@ Einstellungen → Benachrichtigungen → „Auf diesem Gerät einschalten“. Am
 - **Kilometergeld:** Bei „Reise- & Fahrtkosten“ km eingeben, der Betrag wird mit dem amtlichen Satz (0,50 €/km) gerechnet.
 - **Wiederkehrend:** monatlich, quartalsweise, halbjährlich oder jährlich – der tägliche Lauf bucht fällige Termine (auch rückwirkend) und meldet es in der Glocke. Den Beleg lädst du bei der Buchung hoch; „Ohne Beleg“ zeigt, was fehlt.
 - **Anlagen:** Anschaffungen über 1.000 € (netto) werden linear über die Nutzungsdauer abgeschrieben, mit Halbjahresregel (Inbetriebnahme ab Juli → im ersten Jahr die halbe AfA). Scheidet eine Anlage aus, wird der Restbuchwert abgesetzt. Bis 1.000 € als „Geringwertige Wirtschaftsgüter“ buchen.
-- **Export:** CSV mit allen Buchungen, Übersicht nach Kennzahl, oder ZIP mit beiden Tabellen, allen Belegen und den Rechnungs-PDFs. Die Kennzahlen sind eine Orientierung – vor dem Einreichen mit der Steuerberatung abgleichen.
+- **Export:** CSV mit allen Buchungen, Übersicht nach Kennzahl, oder ZIP mit beiden Tabellen, allen Belegen und den Rechnungs-PDFs. Die Kennzahlen entsprechen der Beilage E 1a 2025 (src/lib/shared/ear.ts) – das BMF nummeriert gelegentlich um, daher jedes Jahr mit dem aktuellen Formular abgleichen.
 - Belege liegen unter `/data/portal/ausgaben` und sind Teil der Sicherung. Aufbewahrungspflicht: 7 Jahre.
 
 ## Verträge und Monatsrechnungen

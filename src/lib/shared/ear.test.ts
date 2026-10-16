@@ -52,6 +52,12 @@ describe('categoryOf', () => {
 	it('liefert Kennzahlen', () => {
 		expect(categoryOf('erloese').kz).toBe('9040');
 		expect(categoryOf('afa').kz).toBe('9130');
+		// laut E 1a 2025
+		expect(categoryOf('reise').kz).toBe('9160');
+		expect(categoryOf('miete').kz).toBe('9180');
+		expect(categoryOf('werbung').kz).toBe('9200');
+		expect(categoryOf('sv').kz).toBe('9225');
+		expect(categoryOf('abgang').kz).toBe('9210');
 		expect(categoryOf('gibtsnicht').id).toBe('sonstiges');
 	});
 });

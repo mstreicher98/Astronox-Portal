@@ -68,7 +68,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		['', s.profit >= 0 ? 'Gewinn' : 'Verlust', euro(s.profit)],
 		...(s.outputTax || s.inputTax ? [[], ['', 'Umsatzsteuer aus Einnahmen', euro(s.outputTax)], ['', 'Vorsteuer aus Ausgaben', euro(s.inputTax)]] : []),
 		[],
-		['', 'Kennzahlen zur Orientierung – bitte mit der Steuerberatung abgleichen.', '']
+		['', 'Kennzahlen laut Beilage E 1a 2025 – jedes Jahr mit dem aktuellen Formular abgleichen.', '']
 	]);
 	const name = `Einnahmen-Ausgaben-${year}`;
 
