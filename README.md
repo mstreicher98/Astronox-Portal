@@ -14,6 +14,7 @@ Internes Portal von Astronox Development: Webseite bearbeiten, Kunden verwalten,
 | **Posteingang** | liest office@astronox.dev per IMAP mit, ordnet Mails Kunden zu, Antworten und Weiterleiten aus dem Portal, Anhänge landen bei den Dateien |
 | **Angebote & Rechnungen** | PDF im Astronox-Design, fortlaufende Nummern je Jahr, Festschreiben, Versand per Mail, bezahlt, angenommen/abgelehnt, **Kunde nimmt Angebote per Link an oder fragt Änderungen an** (Seite auf der Webseite), Angebot → Rechnung, Storno, Kleinunternehmer oder USt., Export (CSV und ZIP mit PDFs) für die Steuerberatung |
 | **Verträge** | Hosting-, Wartungs- und Supportverträge je Kunde mit mehreren Positionen, Mindestlaufzeit und Kündigungsfrist; monatliche Sammelrechnung je Kunde, wahlweise als Entwurf oder automatisch festgeschrieben und per Mail gesendet; Übersicht mit wiederkehrendem Umsatz und den nächsten Rechnungen |
+| **Einnahmen & Ausgaben** | Einnahmen-Ausgaben-Rechnung: Ausgaben mit Beleg (Foto oder PDF, am Handy direkt mit der Kamera), bezahlte Rechnungen zählen automatisch als Einnahme, wiederkehrende Ausgaben (Abos, Server, SVS) werden selbst gebucht, Anlagenverzeichnis mit AfA, Jahresübersicht nach E1a-Kennzahl, Export (CSV und ZIP mit allen Belegen) |
 | **Hosting & Wartung** | Erreichbarkeit der Kundenseiten (Prüfung alle paar Minuten, Zertifikat), Verträge, Domains mit Ablaufdatum |
 | **Webseite** | alle Texte, Leistungen, Ablauf, Referenzen mit Bildern, Pakete & Preise, Über mich mit Foto, Impressum, Datenschutz – als Entwurf mit Live-Vorschau (Handy/Tablet/Desktop), dann veröffentlichen. Besucherstatistik ohne Cookies |
 | **Einstellungen** | Briefkopf und Belege, buchbare Zeiten, Auswahl der Projektanfrage, SMTP/IMAP, E-Mail-Texte (auch die automatischen Mails der Webseite, mit Vorschau), Checklisten, Push aufs Handy, Sicherheit, Sicherungen |
@@ -82,7 +83,7 @@ Jeder Push auf `main` baut `ghcr.io/mstreicher98/astronox-portal:latest`. Das Pa
 | alle 15 s | neue Anfragen, Buchungen und Absagen von der Webseite |
 | alle 30 s | fällige Erreichbarkeits-Prüfungen (Alarm nach zwei Fehlversuchen) |
 | alle 2 min | Posteingang (wenn eingerichtet) |
-| täglich ab 3 Uhr | Sicherung, Vertragsrechnungen, überfällige Rechnungen, Domain-/Zertifikatsfristen, Aufräumen |
+| täglich ab 3 Uhr | Sicherung, Vertragsrechnungen, wiederkehrende Ausgaben, überfällige Rechnungen, Domain-/Zertifikatsfristen, Aufräumen |
 
 ### Push aufs Handy
 
@@ -96,6 +97,16 @@ Einstellungen → Benachrichtigungen → „Auf diesem Gerät einschalten“. Am
 - Pflichtangaben nach § 11 UStG stehen auf jeder Rechnung; Briefkopf (Anschrift, Bank) vor der ersten Rechnung unter Einstellungen eintragen
 - Als Kleinunternehmer erscheint der Hinweis nach § 6 Abs. 1 Z 27 UStG; Umstellung auf Regelbesteuerung gilt für neue Belege
 - Aufbewahrung: PDFs liegen unter `/data/portal/belege` und sind Teil der Sicherung
+
+## Einnahmen & Ausgaben (EAR)
+
+- **Zufluss-Abfluss-Prinzip:** Es zählt der Tag der Zahlung. Bezahlte Rechnungen aus „Angebote & Rechnungen“ erscheinen automatisch mit dem Bezahlt-Datum; eine Stornorechnung zählt nur, wenn die stornierte Rechnung schon bezahlt war (Rückzahlung).
+- **Ausgaben** mit Kategorie (jede gehört zu einer Kennzahl der Beilage E1a), USt-Satz laut Beleg, Zahlungsart und Beleg. Als Kleinunternehmer zählt der Bruttobetrag; mit Regelbesteuerung (Einstellungen → Firma & Rechnungen) netto, die Vorsteuer wird getrennt ausgewiesen – gespeichert wird der Stand beim Buchen.
+- **Kilometergeld:** Bei „Reise- & Fahrtkosten“ km eingeben, der Betrag wird mit dem amtlichen Satz (0,50 €/km) gerechnet.
+- **Wiederkehrend:** monatlich, quartalsweise, halbjährlich oder jährlich – der tägliche Lauf bucht fällige Termine (auch rückwirkend) und meldet es in der Glocke. Den Beleg lädst du bei der Buchung hoch; „Ohne Beleg“ zeigt, was fehlt.
+- **Anlagen:** Anschaffungen über 1.000 € (netto) werden linear über die Nutzungsdauer abgeschrieben, mit Halbjahresregel (Inbetriebnahme ab Juli → im ersten Jahr die halbe AfA). Scheidet eine Anlage aus, wird der Restbuchwert abgesetzt. Bis 1.000 € als „Geringwertige Wirtschaftsgüter“ buchen.
+- **Export:** CSV mit allen Buchungen, Übersicht nach Kennzahl, oder ZIP mit beiden Tabellen, allen Belegen und den Rechnungs-PDFs. Die Kennzahlen sind eine Orientierung – vor dem Einreichen mit der Steuerberatung abgleichen.
+- Belege liegen unter `/data/portal/ausgaben` und sind Teil der Sicherung. Aufbewahrungspflicht: 7 Jahre.
 
 ## Verträge und Monatsrechnungen
 

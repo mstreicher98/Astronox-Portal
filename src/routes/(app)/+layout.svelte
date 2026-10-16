@@ -2,6 +2,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
+		Calculator,
 		CalendarDays,
 		FileSignature,
 		FolderKanban,
@@ -28,21 +29,52 @@
 
 	let { data, children } = $props();
 
-	const nav = $derived([
-		{ href: '/', label: 'Cockpit', icon: LayoutDashboard },
-		{ href: '/pipeline', label: 'Pipeline', icon: SquareKanban, badge: data.badges.anfragen, tone: 'accent' },
-		{ href: '/projekte', label: 'Projekte', icon: FolderKanban },
-		{ href: '/kunden', label: 'Kunden', icon: Users },
-		{ href: '/aufgaben', label: 'Aufgaben', icon: ListChecks },
-		{ href: '/zeiten', label: 'Zeiten', icon: Timer },
-		{ href: '/termine', label: 'Termine', icon: CalendarDays },
-		{ href: '/posteingang', label: 'Posteingang', icon: Inbox, badge: data.badges.mails, tone: 'info' },
-		{ href: '/rechnungen', label: 'Angebote & Rechnungen', icon: ReceiptText, badge: data.badges.ueberfaellig, tone: 'warn' },
-		{ href: '/vertraege', label: 'Verträge', icon: FileSignature },
-		{ href: '/hosting', label: 'Hosting & Wartung', icon: Server, badge: data.badges.offline, tone: 'danger' },
-		{ href: '/webseite', label: 'Webseite', icon: Globe },
-		{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }
+	interface NavItem {
+		href: string;
+		label: string;
+		icon: typeof Settings;
+		badge?: number;
+		tone?: string;
+	}
+	// Menü in Bereichen; ohne Titel = steht für sich (Cockpit oben, Einstellungen unten)
+	const groups = $derived<{ title?: string; items: NavItem[] }[]>([
+		{ items: [{ href: '/', label: 'Cockpit', icon: LayoutDashboard }] },
+		{
+			title: 'Vertrieb',
+			items: [
+				{ href: '/pipeline', label: 'Pipeline', icon: SquareKanban, badge: data.badges.anfragen, tone: 'accent' },
+				{ href: '/kunden', label: 'Kunden', icon: Users },
+				{ href: '/posteingang', label: 'Posteingang', icon: Inbox, badge: data.badges.mails, tone: 'info' }
+			]
+		},
+		{
+			title: 'Projekte',
+			items: [
+				{ href: '/projekte', label: 'Projekte', icon: FolderKanban },
+				{ href: '/aufgaben', label: 'Aufgaben', icon: ListChecks },
+				{ href: '/zeiten', label: 'Zeiten', icon: Timer },
+				{ href: '/termine', label: 'Termine', icon: CalendarDays }
+			]
+		},
+		{
+			title: 'Finanzen',
+			items: [
+				{ href: '/rechnungen', label: 'Angebote & Rechnungen', icon: ReceiptText, badge: data.badges.ueberfaellig, tone: 'warn' },
+				{ href: '/vertraege', label: 'Verträge', icon: FileSignature },
+				{ href: '/einnahmen-ausgaben', label: 'Einnahmen & Ausgaben', icon: Calculator }
+			]
+		},
+		{
+			title: 'Betrieb',
+			items: [
+				{ href: '/hosting', label: 'Hosting & Wartung', icon: Server, badge: data.badges.offline, tone: 'danger' },
+				{ href: '/webseite', label: 'Webseite', icon: Globe }
+			]
+		},
+		{ items: [{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }] }
 	]);
+	const nav = $derived(groups.flatMap((g) => g.items));
+	const indexOf = (item: NavItem) => nav.indexOf(item);
 
 	const mobileNav = $derived(nav.filter((n) => ['/', '/pipeline', '/projekte', '/posteingang'].includes(n.href)));
 
@@ -88,12 +120,17 @@
 			</span>
 		</a>
 		<nav>
-			{#each nav as item, i (item.href)}
-				<a href={item.href} class:active={isActive(item.href)} aria-current={isActive(item.href) ? 'page' : undefined} style="--i: {i}">
-					<item.icon size={18} />
-					<span>{item.label}</span>
-					{#if item.badge}<b class="count {item.tone}">{item.badge}</b>{/if}
-				</a>
+			{#each groups as g, gi (gi)}
+				<div class="group" class:titled={g.title}>
+					{#if g.title}<p class="group-title" style="--i: {indexOf(g.items[0])}">{g.title}</p>{/if}
+					{#each g.items as item (item.href)}
+						<a href={item.href} class:active={isActive(item.href)} aria-current={isActive(item.href) ? 'page' : undefined} style="--i: {indexOf(item)}">
+							<item.icon size={18} />
+							<span>{item.label}</span>
+							{#if item.badge}<b class="count {item.tone}">{item.badge}</b>{/if}
+						</a>
+					{/each}
+				</div>
 			{/each}
 		</nav>
 		<div class="me">
@@ -147,12 +184,15 @@
 			<button class="btn quiet icon sm" type="button" aria-label="Schließen" onclick={() => (drawer = false)}><X size={18} /></button>
 		</div>
 		<div class="drawer-grid">
-			{#each nav as item (item.href)}
-				<a href={item.href} class:active={isActive(item.href)}>
-					<item.icon size={20} />
-					<span>{item.label}</span>
-					{#if item.badge}<b class="count {item.tone}">{item.badge}</b>{/if}
-				</a>
+			{#each groups as g, gi (gi)}
+				{#if g.title}<p class="drawer-title">{g.title}</p>{/if}
+				{#each g.items as item (item.href)}
+					<a href={item.href} class:active={isActive(item.href)}>
+						<item.icon size={20} />
+						<span>{item.label}</span>
+						{#if item.badge}<b class="count {item.tone}">{item.badge}</b>{/if}
+					</a>
+				{/each}
 			{/each}
 		</div>
 		<form method="POST" action="/abmelden">
@@ -229,10 +269,41 @@
 
 	nav {
 		display: grid;
+		align-content: start;
 		gap: 0.15rem;
 		overflow-y: auto;
 		margin: 0 -0.25rem;
 		padding: 0 0.25rem;
+		/* auf niedrigen Bildschirmen scrollt das Menü – schmale Leiste, damit die Namen Platz haben */
+		scrollbar-width: thin;
+	}
+
+	/* Bereiche im Menü: kleiner Titel, etwas Abstand */
+	.group {
+		display: grid;
+		gap: 0.15rem;
+	}
+
+	.group.titled {
+		margin-top: 0.75rem;
+	}
+
+	.group:last-child {
+		margin-top: 0.75rem;
+		padding-top: 0.6rem;
+		border-top: 1px solid var(--line-soft);
+	}
+
+	.group-title {
+		margin: 0 0 0.2rem;
+		padding: 0 0.7rem;
+		color: var(--dust-2);
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+		animation: rise 0.5s var(--ease-out) both;
+		animation-delay: calc(var(--i) * 30ms);
 	}
 
 	nav a {
@@ -520,6 +591,16 @@
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.5rem;
+	}
+
+	.drawer-title {
+		grid-column: 1 / -1;
+		margin: 0.4rem 0 -0.1rem 0.2rem;
+		color: var(--dust-2);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
 	}
 
 	.drawer-grid a {

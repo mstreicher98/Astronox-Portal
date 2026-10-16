@@ -6,6 +6,7 @@ import { dailyBackup } from './backup';
 import { db } from './db';
 import { domains, monitors, notifications } from './db/schema';
 import { billContracts } from './contracts';
+import { bookRecurring } from './ear';
 import { overdueReminders } from './documents';
 import { syncInbox } from './imap';
 import { purgeChecks, runMonitors } from './monitor';
@@ -71,6 +72,7 @@ async function daily() {
 	const steps: [string, () => Promise<unknown>][] = [
 		['Sicherung', dailyBackup],
 		['Vertragsrechnungen', () => billContracts()],
+		['Wiederkehrende Ausgaben', () => bookRecurring()],
 		['Überfällige Rechnungen', overdueReminders],
 		['Fristen', expiryWarnings],
 		['Aufräumen', async () => {

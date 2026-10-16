@@ -542,6 +542,77 @@ export const media = sqliteTable('media', {
 	createdAt: created()
 });
 
+/* ------------------------------------------------------------------ Einnahmen & Ausgaben */
+
+/** Wiederkehrende Ausgaben (Abos, Hosting, Versicherung …) – der tägliche Lauf bucht sie */
+export const ledgerRecurring = sqliteTable('ledger_recurring', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	description: text('description').notNull(),
+	party: text('party'),
+	category: text('category').notNull(),
+	grossCents: integer('gross_cents').notNull(),
+	taxRate: integer('tax_rate').notNull().default(20),
+	paymentMethod: text('payment_method'),
+	interval: text('interval', { enum: ['monat', 'quartal', 'halbjahr', 'jahr'] })
+		.notNull()
+		.default('monat'),
+	/** nächste Buchung (YYYY-MM-DD) */
+	nextDate: text('next_date').notNull(),
+	endDate: text('end_date'),
+	active: bool('active').notNull().default(true),
+	createdAt: created()
+});
+
+/**
+ * Einnahmen und Ausgaben, die nicht aus Rechnungen kommen (bezahlte Rechnungen
+ * zählen automatisch). Datum = Tag der Zahlung (Zufluss-Abfluss-Prinzip).
+ */
+export const ledgerEntries = sqliteTable(
+	'ledger_entries',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		kind: text('kind', { enum: ['einnahme', 'ausgabe'] }).notNull(),
+		date: text('date').notNull(),
+		description: text('description').notNull(),
+		/** Lieferant bzw. Zahler */
+		party: text('party'),
+		category: text('category').notNull(),
+		grossCents: integer('gross_cents').notNull(),
+		taxRate: integer('tax_rate').notNull().default(0),
+		/** mit USt-Pflicht gebucht (Vorsteuer abziehbar) – Stand beim Anlegen */
+		vat: bool('vat').notNull().default(false),
+		paymentMethod: text('payment_method'),
+		notes: text('notes'),
+		/** Beleg unter /data/portal/ausgaben */
+		receiptFile: text('receipt_file'),
+		receiptName: text('receipt_name'),
+		receiptMime: text('receipt_mime'),
+		receiptSize: integer('receipt_size'),
+		recurringId: integer('recurring_id').references(() => ledgerRecurring.id, { onDelete: 'set null' }),
+		createdAt: created(),
+		updatedAt: updated()
+	},
+	(t) => [index('ledger_entries_date_idx').on(t.date)]
+);
+
+/** Anlagenverzeichnis: Anschaffungen über 1.000 € werden über die Nutzungsdauer abgeschrieben */
+export const assets = sqliteTable('assets', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	/** Inbetriebnahme (YYYY-MM-DD) – entscheidet über die Halbjahresregel */
+	startDate: text('start_date').notNull(),
+	/** Anschaffungskosten: netto mit Vorsteuerabzug, sonst brutto */
+	costCents: integer('cost_cents').notNull(),
+	years: integer('years').notNull(),
+	disposedOn: text('disposed_on'),
+	notes: text('notes'),
+	receiptFile: text('receipt_file'),
+	receiptName: text('receipt_name'),
+	receiptMime: text('receipt_mime'),
+	receiptSize: integer('receipt_size'),
+	createdAt: created()
+});
+
 export type User = typeof users.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
@@ -563,3 +634,6 @@ export type MailMessage = typeof mailMessages.$inferSelect;
 export type MailTemplate = typeof mailTemplates.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type MediaRow = typeof media.$inferSelect;
+export type LedgerEntry = typeof ledgerEntries.$inferSelect;
+export type LedgerRecurring = typeof ledgerRecurring.$inferSelect;
+export type Asset = typeof assets.$inferSelect;
