@@ -20,12 +20,15 @@ import { getSetting, setSetting } from './settings';
 
 async function connect(): Promise<ImapFlow | null> {
 	const s = await getSetting('imap');
-	if (!s.enabled || !s.host || !s.user) return null;
+	const ms = s.auth === 'microsoft';
+	// Microsoft 365 ohne eigenes Postfach: das des Absenders
+	const user = s.user || (ms ? (await getSetting('smtp')).from : '');
+	if (!s.enabled || !s.host || !user) return null;
 	const c = new ImapFlow({
 		host: s.host,
 		port: s.port,
 		secure: s.secure,
-		auth: s.auth === 'microsoft' ? { user: s.user, accessToken: await microsoftToken(await getSetting('microsoft')) } : { user: s.user, pass: decrypt(s.password) },
+		auth: ms ? { user, accessToken: await microsoftToken(await getSetting('microsoft')) } : { user, pass: decrypt(s.password) },
 		logger: false,
 		connectionTimeout: 20_000,
 		greetingTimeout: 15_000,

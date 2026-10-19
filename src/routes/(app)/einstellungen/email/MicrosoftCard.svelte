@@ -16,10 +16,15 @@
 
 	// Gebunden, damit die Befehle in der Anleitung gleich die richtigen IDs enthalten
 	// (nur bei geänderten gespeicherten Werten neu setzen, nicht bei jedem Neuladen der Seitenleiste)
+	let tenantId = $state('');
 	let clientId = $state('');
 	let objectId = $state('');
+	const savedTenant = $derived(ms.tenantId);
 	const savedClient = $derived(ms.clientId);
 	const savedObject = $derived(ms.objectId);
+	$effect(() => {
+		tenantId = savedTenant;
+	});
 	$effect(() => {
 		clientId = savedClient;
 	});
@@ -28,9 +33,12 @@
 	});
 
 	const box = $derived(mailbox.trim() || 'office@astronox.dev');
+	// Häufiger Fehler: die falsche ID aus der Übersicht kopiert
+	const wrongObject = $derived(!!objectId.trim() && [tenantId.trim(), clientId.trim()].includes(objectId.trim()));
 	const commands = $derived(
 		[
-			'Install-Module -Name ExchangeOnlineManagement -Scope CurrentUser',
+			'Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force',
+			'Install-Module -Name ExchangeOnlineManagement -Scope CurrentUser -Force',
 			'Connect-ExchangeOnline',
 			`$app = New-ServicePrincipal -AppId ${clientId.trim() || '<Anwendungs-ID>'} -ObjectId ${objectId.trim() || '<Objekt-ID>'} -DisplayName "Astronox Portal"`,
 			`Add-MailboxPermission -Identity ${box} -User $app.Identity -AccessRights FullAccess`,
@@ -58,7 +66,7 @@
 		</p>
 	{/if}
 	<div class="form-grid">
-		<label class="field"><span>Verzeichnis-ID (Mandant)</span><input name="tenantId" value={ms.tenantId} autocomplete="off" spellcheck="false" /></label>
+		<label class="field"><span>Verzeichnis-ID (Mandant)</span><input name="tenantId" bind:value={tenantId} autocomplete="off" spellcheck="false" /></label>
 		<label class="field"><span>Anwendungs-ID (Client)</span><input name="clientId" bind:value={clientId} autocomplete="off" spellcheck="false" /></label>
 		<label class="field">
 			<span>Geheimer Schlüssel (Wert) {#if ms.hasSecret}<small>– gespeichert, leer lassen = unverändert</small>{/if}</span>
@@ -71,7 +79,8 @@
 		</label>
 		<label class="field full">
 			<span>Objekt-ID der Unternehmensanwendung <small>(nur für die Befehle in der Anleitung)</small></span>
-			<input name="objectId" bind:value={objectId} autocomplete="off" spellcheck="false" />
+			<input name="objectId" bind:value={objectId} autocomplete="off" spellcheck="false" aria-invalid={wrongObject} />
+			{#if wrongObject}<small class="hint bad">Das ist die Verzeichnis- bzw. Anwendungs-ID. Die Objekt-ID findest du unter Unternehmensanwendungen → Astronox Portal.</small>{/if}
 		</label>
 	</div>
 
@@ -92,11 +101,12 @@
 				<code>SMTP.SendAsApp</code> und <code>IMAP.AccessAsApp</code> anhaken und hinzufügen. Danach <b>Administratorzustimmung erteilen</b>.
 			</li>
 			<li>
-				<b>Unternehmensanwendungen</b> → deine App öffnen → <b>Objekt-ID</b> oben eintragen. Wichtig: die aus den Unternehmensanwendungen, nicht die aus den
-				App-Registrierungen.
+				<b>Unternehmensanwendungen</b> → deine App öffnen → <b>Objekt-ID</b> oben eintragen. Schneller geht es über die Übersicht der App-Registrierung: Link
+				bei „Verwaltete Anwendung im lokalen Verzeichnis“. Wichtig: nicht die Objekt-ID der App-Registrierung und nicht die Verzeichnis-ID.
 			</li>
 			<li>
-				PowerShell öffnen und diese Befehle ausführen – beim Verbinden meldest du dich als Administrator an:
+				Auf deinem PC <b>Windows PowerShell</b> öffnen (Windows-Taste, „PowerShell“ tippen – nicht auf dem Server), die Befehle einfügen und Enter drücken. Beim Verbinden
+				meldest du dich als Administrator an:
 				<div class="code">
 					<pre>{commands}</pre>
 					<button class="btn quiet sm" type="button" onclick={copy}><Copy size={14} /> Kopieren</button>
@@ -179,6 +189,10 @@
 		font-size: 0.8rem;
 		line-height: 1.7;
 		white-space: pre;
+	}
+
+	.bad {
+		color: var(--danger);
 	}
 
 	.code .btn {

@@ -43,9 +43,11 @@ async function transporter() {
 	const s = await getSetting('smtp');
 	if (!s.host) return null;
 	const ms = s.auth === 'microsoft';
+	// Microsoft 365 meldet sich immer mit einem Postfach an – ohne Eintrag das des Absenders
+	const user = s.user || (ms ? s.from : '');
 	const secret = ms ? await microsoftToken(await getSetting('microsoft')) : decrypt(s.password);
 	// Neues Token → neuer Transport (Nodemailer erneuert es nicht selbst)
-	const key = JSON.stringify([s.host, s.port, s.secure, s.user, ms, secret]);
+	const key = JSON.stringify([s.host, s.port, s.secure, user, ms, secret]);
 	if (!transport || transport.key !== key) {
 		transport = {
 			key,
@@ -53,7 +55,7 @@ async function transporter() {
 				host: s.host,
 				port: s.port,
 				secure: s.secure,
-				auth: !s.user ? undefined : ms ? { type: 'OAuth2' as const, user: s.user, accessToken: secret } : { user: s.user, pass: secret },
+				auth: !user ? undefined : ms ? { type: 'OAuth2' as const, user, accessToken: secret } : { user, pass: secret },
 				connectionTimeout: 15_000,
 				greetingTimeout: 15_000,
 				socketTimeout: 30_000

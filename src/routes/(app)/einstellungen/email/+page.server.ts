@@ -1,4 +1,4 @@
-import { act, type Fields } from '$lib/server/forms';
+import { act, bad, type Fields } from '$lib/server/forms';
 import { syncInbox, testImap } from '$lib/server/imap';
 import { verifySmtp } from '$lib/server/mail';
 import { MS365, microsoftToken, tokenRoles } from '$lib/server/microsoft';
@@ -27,12 +27,14 @@ async function saveSmtp(f: Fields) {
 	const password = f.str('password', 500);
 	// Microsoft 365 hat feste Server
 	const server = auth === 'microsoft' ? MS365.smtp : { host: f.str('host', 200) ?? '', port, secure: f.has('secure') ? f.bool('secure') : port === 465 };
+	const from = f.email('from') ?? 'office@astronox.dev';
 	await setSetting('smtp', {
 		...server,
-		user: f.str('user', 200) ?? '',
+		// Microsoft 365 meldet sich immer mit einem Postfach an – leer = Absender
+		user: f.str('user', 200) ?? (auth === 'microsoft' ? from : ''),
 		// Bei Microsoft 365 kein Passwort nötig – ein altes bleibt für den Rückweg gespeichert
 		password: password ? encrypt(password) : cur.password,
-		from: f.email('from') ?? 'office@astronox.dev',
+		from,
 		fromName: f.str('fromName', 100) ?? '',
 		inbox: f.email('inbox') ?? 'office@astronox.dev',
 		auth
@@ -49,7 +51,7 @@ async function saveImap(f: Fields) {
 	await setSetting('imap', {
 		enabled: f.bool('enabled'),
 		...server,
-		user: same ? smtp.user : (f.str('user', 200) ?? ''),
+		user: same ? smtp.user || (auth === 'microsoft' ? smtp.from : '') : (f.str('user', 200) ?? ''),
 		password: same ? smtp.password : password ? encrypt(password) : cur.password,
 		mailbox: f.str('mailbox', 200) ?? 'INBOX',
 		// Bei Microsoft 365 nicht im Formular – Exchange legt Gesendetes selbst ab
@@ -61,11 +63,17 @@ async function saveImap(f: Fields) {
 async function saveMicrosoft(f: Fields) {
 	const cur = await getSetting('microsoft');
 	const secret = f.str('clientSecret', 500);
+	const tenantId = f.str('tenantId', 100) ?? '';
+	const clientId = f.str('clientId', 100) ?? '';
+	const objectId = f.str('objectId', 100) ?? '';
+	if (objectId && (objectId === tenantId || objectId === clientId)) {
+		bad('Die Objekt-ID ist dieselbe wie die Verzeichnis- oder Anwendungs-ID. Du brauchst die Objekt-ID aus „Unternehmensanwendungen“ → Astronox Portal.');
+	}
 	await setSetting('microsoft', {
-		tenantId: f.str('tenantId', 100) ?? '',
-		clientId: f.str('clientId', 100) ?? '',
+		tenantId,
+		clientId,
 		clientSecret: secret ? encrypt(secret) : cur.clientSecret,
-		objectId: f.str('objectId', 100) ?? '',
+		objectId,
 		secretExpires: f.day('secretExpires') ?? ''
 	});
 }
