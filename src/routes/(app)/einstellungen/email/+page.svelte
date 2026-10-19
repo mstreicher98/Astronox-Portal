@@ -92,7 +92,7 @@
 >
 	<h2><Inbox size={17} /> Posteingang mitlesen (IMAP)</h2>
 	<p class="small muted">
-		Holt alle 2 Minuten neue Mails ins Portal und ordnet sie Kunden zu. Im Postfach wird nichts verändert.
+		Holt alle 2 Minuten neue Mails ins Portal und ordnet sie Kunden zu. Gelesen und Löschen übernimmt das Portal ins Postfach – gelöschte Mails landen dort im Papierkorb.
 		{#if i.enabled && data.stand.lastSync}Zuletzt {relative(data.stand.lastSync)}{data.stand.lastError ? ` – Fehler: ${data.stand.lastError}` : ''}.{/if}
 	</p>
 	<label class="switch"><input type="checkbox" name="enabled" checked={i.enabled} /> Mitlesen eingeschaltet</label>

@@ -3,11 +3,11 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type AddressObject } from 'mailparser';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { logActivity, notify } from './activity';
 import { customerByEmail } from './customers';
 import { db, FILES_DIR } from './db';
-import { files, mailMessages } from './db/schema';
+import { activities, files, mailMessages, notifications } from './db/schema';
 import { microsoftHint, microsoftToken } from './microsoft';
 import { decrypt } from './secret';
 import { getSetting, setSetting } from './settings';
@@ -15,7 +15,8 @@ import { getSetting, setSetting } from './settings';
 /**
  * Liest das Postfach office@astronox.dev über IMAP mit (Passwort oder Microsoft 365). Mails von bekannten
  * Kunden landen in deren Verlauf, alles andere im Posteingang „nicht zugeordnet“.
- * Im Postfach selbst wird nichts verändert oder gelöscht.
+ * Gelesen/ungelesen und Löschen übernimmt das Portal ins Postfach (z. B. für
+ * Outlook) – gelöschte Mails landen dort im Papierkorb und lassen sich wiederherstellen.
  */
 
 async function connect(): Promise<ImapFlow | null> {
@@ -86,17 +87,17 @@ export async function syncInbox(): Promise<{ fetched: number; error?: string }> 
 			}
 			if (Array.isArray(range) && !range.length) range = [];
 
-			const batch: { uid: number; source: Buffer }[] = [];
+			const batch: { uid: number; source: Buffer; seen: boolean }[] = [];
 			if (!Array.isArray(range) || range.length) {
-				for await (const msg of c.fetch(range, { uid: true, source: true }, { uid: true })) {
-					if (msg.uid > state.lastUid && msg.source) batch.push({ uid: msg.uid, source: msg.source });
+				for await (const msg of c.fetch(range, { uid: true, source: true, flags: true }, { uid: true })) {
+					if (msg.uid > state.lastUid && msg.source) batch.push({ uid: msg.uid, source: msg.source, seen: !!msg.flags?.has('\\Seen') });
 					if (batch.length >= 200) break;
 				}
 			}
 			batch.sort((a, b) => a.uid - b.uid);
 
-			for (const { uid, source } of batch) {
-				await store(source, uid, s.mailbox || 'INBOX', own);
+			for (const { uid, source, seen } of batch) {
+				await store(source, uid, s.mailbox || 'INBOX', own, seen);
 				state.lastUid = Math.max(state.lastUid, uid);
 				fetched++;
 			}
@@ -122,7 +123,8 @@ export async function syncInbox(): Promise<{ fetched: number; error?: string }> 
 	}
 }
 
-async function store(source: Buffer, uid: number, mailbox: string, own: Set<string>) {
+/** seen: im Postfach schon gelesen (z. B. in Outlook) */
+async function store(source: Buffer, uid: number, mailbox: string, own: Set<string>, seen: boolean) {
 	const mail = await simpleParser(source, { skipImageLinks: true });
 	const from = first(mail.from);
 	const fromAddr = from?.address?.toLowerCase() ?? '';
@@ -164,6 +166,7 @@ async function store(source: Buffer, uid: number, mailbox: string, own: Set<stri
 			customerId,
 			projectId,
 			ignored,
+			seen,
 			imapMailbox: mailbox,
 			imapUid: uid
 		})
@@ -228,4 +231,101 @@ export async function testImap(): Promise<{ ok: true; folders: string[] } | { ok
 	} catch (err) {
 		return { ok: false, error: await errorText(err) };
 	}
+}
+
+/* ------------------------------------------------- Änderungen ins Postfach */
+
+type MailRef = { imapMailbox: string | null; imapUid: number | null };
+
+/** UIDs je Ordner – nur Mails, die aus dem Postfach stammen */
+function byMailbox(rows: MailRef[]): Map<string, number[]> {
+	const out = new Map<string, number[]>();
+	for (const r of rows) {
+		if (!r.imapMailbox || !r.imapUid) continue;
+		out.set(r.imapMailbox, [...(out.get(r.imapMailbox) ?? []), r.imapUid]);
+	}
+	return out;
+}
+
+/** Gelesen bzw. ungelesen auch im Postfach markieren (Outlook, Handy …) */
+export async function setSeenInMailbox(rows: MailRef[], seen: boolean): Promise<void> {
+	const groups = byMailbox(rows);
+	if (!groups.size) return;
+	const c = await connect();
+	if (!c) return;
+	try {
+		for (const [box, uids] of groups) {
+			const lock = await c.getMailboxLock(box);
+			try {
+				if (seen) await c.messageFlagsAdd(uids, ['\Seen'], { uid: true });
+				else await c.messageFlagsRemove(uids, ['\Seen'], { uid: true });
+			} finally {
+				lock.release();
+			}
+		}
+	} finally {
+		await c.logout().catch(() => {});
+	}
+}
+
+/** Im Hintergrund – das Öffnen einer Mail wartet nicht auf den Mailserver */
+export function queueSeen(rows: MailRef[], seen: boolean) {
+	void setSeenInMailbox(rows, seen).catch(async (err) => console.error('[imap] gelesen:', await errorText(err)));
+}
+
+const TRASH_NAMES = ['deleted items', 'gelöschte elemente', 'trash', 'papierkorb', 'inbox.trash', 'deleted messages'];
+
+/** In den Papierkorb des Postfachs verschieben (bei Microsoft 365 „Gelöschte Elemente“) */
+async function trashInMailbox(rows: MailRef[]): Promise<string | undefined> {
+	const groups = byMailbox(rows);
+	if (!groups.size) return;
+	let c: ImapFlow | null = null;
+	try {
+		c = await connect();
+		if (!c) return;
+		const boxes = await c.list();
+		const trash = boxes.find((b) => b.specialUse === '\Trash') ?? boxes.find((b) => TRASH_NAMES.includes(b.path.toLowerCase()));
+		if (!trash) return 'kein Papierkorb-Ordner im Postfach gefunden';
+		for (const [box, uids] of groups) {
+			if (box === trash.path) continue;
+			const lock = await c.getMailboxLock(box);
+			try {
+				await c.messageMove(uids, trash.path, { uid: true });
+			} finally {
+				lock.release();
+			}
+		}
+	} catch (err) {
+		return await errorText(err);
+	} finally {
+		await c?.logout().catch(() => {});
+	}
+}
+
+/**
+ * Mails im Portal löschen. Empfangene wandern im Postfach in den Papierkorb –
+ * sonst kämen sie beim nächsten vollständigen Abruf wieder. Anhänge, die bei
+ * einem Kunden oder Projekt liegen, bleiben dort; alle anderen gehen mit.
+ */
+export async function deleteMails(ids: number[]): Promise<{ deleted: number; mailboxError?: string }> {
+	if (!ids.length) return { deleted: 0 };
+	const rows = await db
+		.select({ id: mailMessages.id, direction: mailMessages.direction, imapMailbox: mailMessages.imapMailbox, imapUid: mailMessages.imapUid })
+		.from(mailMessages)
+		.where(inArray(mailMessages.id, ids));
+	if (!rows.length) return { deleted: 0 };
+	const mailboxError = await trashInMailbox(rows.filter((r) => r.direction === 'ein'));
+
+	const found = rows.map((r) => r.id);
+	for (const f of await db.select().from(files).where(inArray(files.mailId, found))) {
+		if (f.customerId || f.projectId) continue;
+		await fs.rm(path.join(FILES_DIR, f.storedName), { force: true });
+		await db.delete(files).where(eq(files.id, f.id));
+	}
+	await db.update(files).set({ mailId: null }).where(inArray(files.mailId, found));
+	// Verlauf und Glocke würden sonst auf eine gelöschte Mail zeigen
+	await db.delete(activities).where(and(inArray(activities.kind, ['mail_ein', 'mail_aus']), inArray(sql`json_extract(${activities.meta}, '$.mailId')`, found)));
+	await db.delete(notifications).where(inArray(notifications.url, found.map((id) => `/posteingang/${id}`)));
+	await db.delete(mailMessages).where(inArray(mailMessages.id, found));
+	return { deleted: found.length, mailboxError };
 }

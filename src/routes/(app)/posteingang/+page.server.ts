@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { customers, mailMessages, projects } from '$lib/server/db/schema';
-import { act } from '$lib/server/forms';
-import { syncInbox } from '$lib/server/imap';
+import { act, bad } from '$lib/server/forms';
+import { deleteMails, queueSeen, syncInbox } from '$lib/server/imap';
 import { getSetting } from '$lib/server/settings';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -26,6 +26,8 @@ export const load: PageServerLoad = async ({ url }) => {
 			toAddrs: mailMessages.toAddrs,
 			date: mailMessages.date,
 			seen: mailMessages.seen,
+			/** stammt aus dem Postfach – Löschen landet dort im Papierkorb */
+			inMailbox: sql<boolean>`${mailMessages.imapUid} is not null`,
 			status: mailMessages.status,
 			attachments: mailMessages.attachments,
 			snippet: sql<string>`substr(replace(replace(coalesce(${mailMessages.text}, ''), char(10), ' '), char(13), ' '), 1, 160)`,
@@ -58,7 +60,25 @@ export const actions: Actions = {
 		return { message: r.fetched ? `${r.fetched} neue Mail${r.fetched === 1 ? '' : 's'}` : 'Keine neuen Mails' };
 	}),
 	alle_gelesen: act(async () => {
-		await db.update(mailMessages).set({ seen: true }).where(eq(mailMessages.seen, false));
+		const rows = await db
+			.update(mailMessages)
+			.set({ seen: true })
+			.where(eq(mailMessages.seen, false))
+			.returning({ imapMailbox: mailMessages.imapMailbox, imapUid: mailMessages.imapUid });
+		queueSeen(rows, true);
 		return { message: 'Alles als gelesen markiert' };
+	}),
+
+	gelesen: act(async (_e, f) => {
+		const id = f.id('id') ?? bad('Mail fehlt.');
+		const seen = f.bool('seen');
+		const rows = await db.update(mailMessages).set({ seen }).where(eq(mailMessages.id, id)).returning({ imapMailbox: mailMessages.imapMailbox, imapUid: mailMessages.imapUid });
+		queueSeen(rows, seen);
+	}),
+
+	loeschen: act(async (_e, f) => {
+		const id = f.id('id') ?? bad('Mail fehlt.');
+		const r = await deleteMails([id]);
+		return { message: r.mailboxError ? `Im Portal gelöscht, im Postfach aber nicht: ${r.mailboxError}` : 'Gelöscht' };
 	})
 };

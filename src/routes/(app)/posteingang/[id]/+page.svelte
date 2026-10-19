@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { EyeOff, Forward, Link2, Mail, MailOpen, Paperclip, Reply, UserPlus } from '@lucide/svelte';
+	import { EyeOff, Forward, Link2, Mail, MailOpen, Paperclip, Reply, Trash2, UserPlus } from '@lucide/svelte';
 	import Compose from '$lib/components/Compose.svelte';
 	import { bytes, dateTime } from '$lib/shared/format';
 	import { glow } from '$lib/ui/actions';
@@ -60,6 +60,20 @@
 					{/if}
 					<form method="POST" action="?/ungelesen" use:enhance={submit()}><button class="btn quiet sm" type="submit"><MailOpen size={15} /> Ungelesen</button></form>
 					<form method="POST" action="?/ausblenden" use:enhance={submit()}><button class="btn quiet sm" type="submit"><EyeOff size={15} /> {m.ignored ? 'Einblenden' : 'Ausblenden'}</button></form>
+					<form
+						method="POST"
+						action="?/loeschen"
+						use:enhance={submit({
+							confirm: 'Mail löschen?',
+							confirmDetail: data.recoverable
+								? 'Sie landet in deinem Postfach im Papierkorb („Gelöschte Elemente“) und lässt sich dort wiederherstellen.'
+								: m.direction === 'aus'
+									? 'Nur im Portal – die Kopie in deinem Postfach bleibt.'
+									: 'Sie ist danach endgültig weg.'
+						})}
+					>
+						<button class="btn quiet sm del" type="submit"><Trash2 size={15} /> Löschen</button>
+					</form>
 				</div>
 			</header>
 
@@ -146,6 +160,10 @@
 />
 
 <style>
+	.del:hover {
+		color: var(--danger);
+	}
+
 	.layout {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) 20rem;

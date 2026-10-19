@@ -1,9 +1,11 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { asc, eq, inArray, isNull } from 'drizzle-orm';
-import { logActivity } from '$lib/server/activity';
+import { logActivity, notify } from '$lib/server/activity';
 import { db } from '$lib/server/db';
 import { contacts, customers, files, mailMessages, projects } from '$lib/server/db/schema';
 import { act, bad } from '$lib/server/forms';
+import { deleteMails, queueSeen } from '$lib/server/imap';
+import { getSetting } from '$lib/server/settings';
 import type { Actions, PageServerLoad } from './$types';
 
 async function mail(id: string) {
@@ -14,7 +16,10 @@ async function mail(id: string) {
 
 export const load: PageServerLoad = async ({ params }) => {
 	const m = await mail(params.id);
-	if (!m.seen) await db.update(mailMessages).set({ seen: true }).where(eq(mailMessages.id, m.id));
+	if (!m.seen) {
+		await db.update(mailMessages).set({ seen: true }).where(eq(mailMessages.id, m.id));
+		queueSeen([m], true);
+	}
 	const att: { fileId?: number; name: string; size: number }[] = JSON.parse(m.attachments || '[]');
 	const fileIds = att.map((a) => a.fileId).filter((x): x is number => !!x);
 	const [customer] = m.customerId ? await db.select().from(customers).where(eq(customers.id, m.customerId)) : [];
@@ -29,7 +34,9 @@ export const load: PageServerLoad = async ({ params }) => {
 					.where(inArray(mailMessages.messageId, [m.inReplyTo, ...(m.references?.split(/\s+/) ?? [])].filter((x): x is string => !!x)))
 			: []
 	]);
-	return { mail: { ...m, seen: true }, customer: customer ?? null, customers: allCustomers, projects: customerProjects, files: attachedFiles, thread };
+	// Empfangene Mails aus dem Postfach landen beim Löschen dort im Papierkorb
+	const recoverable = m.direction === 'ein' && !!m.imapUid && (await getSetting('imap')).enabled;
+	return { mail: { ...m, seen: true }, customer: customer ?? null, customers: allCustomers, projects: customerProjects, files: attachedFiles, thread, recoverable };
 };
 
 export const actions: Actions = {
@@ -74,6 +81,16 @@ export const actions: Actions = {
 	ungelesen: act(async ({ params }) => {
 		const m = await mail(params.id);
 		await db.update(mailMessages).set({ seen: false }).where(eq(mailMessages.id, m.id));
+		queueSeen([m], false);
 		return { message: 'Als ungelesen markiert' };
+	}),
+
+	loeschen: act(async ({ params }) => {
+		const m = await mail(params.id);
+		const r = await deleteMails([m.id]);
+		if (r.mailboxError) {
+			await notify({ kind: 'system', title: 'Mail im Postfach nicht gelöscht', body: `„${m.subject}“: ${r.mailboxError}`, push: false });
+		}
+		redirect(303, m.direction === 'aus' ? '/posteingang?ansicht=gesendet' : '/posteingang');
 	})
 };

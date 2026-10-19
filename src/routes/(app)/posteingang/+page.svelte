@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { CheckCheck, CircleAlert, Inbox, Paperclip, PenLine, RefreshCw, Send, Settings } from '@lucide/svelte';
+	import { CheckCheck, CircleAlert, Inbox, Mail, MailOpen, Paperclip, PenLine, RefreshCw, Send, Settings, Trash2 } from '@lucide/svelte';
 	import Compose from '$lib/components/Compose.svelte';
 	import { relative } from '$lib/shared/format';
 	import { submit } from '$lib/ui/form';
@@ -53,8 +53,11 @@
 			<ul class="list mails">
 				{#each data.mails as m, i (m.id)}
 					{@const att = JSON.parse(m.attachments || '[]').length}
+					{@const unread = m.direction === 'ein' && !m.seen}
+					<!-- Empfangene Mails aus dem Postfach landen dort im Papierkorb – nur sonst nachfragen -->
+					{@const recoverable = m.direction === 'ein' && !!m.inMailbox && data.imap.enabled}
 					<li style="--i: {i}">
-						<a href="/posteingang/{m.id}" class:unread={m.direction === 'ein' && !m.seen}>
+						<a href="/posteingang/{m.id}" class:unread>
 							<span class="dot" aria-hidden="true"></span>
 							<span class="from">
 								{#if m.direction === 'aus'}<Send size={13} /> {m.toAddrs}{:else}{m.fromName || m.fromAddr}{/if}
@@ -65,11 +68,35 @@
 								<small>{m.snippet}</small>
 							</span>
 							<span class="meta">
-								{#if m.customer}<span class="chip">{m.project ?? m.customer}</span>{:else if m.direction === 'ein'}<span class="chip new">neu</span>{/if}
+								{#if unread}<span class="chip new">neu</span>{/if}
+								{#if m.customer}<span class="chip">{m.project ?? m.customer}</span>{/if}
 								{#if att}<Paperclip size={13} />{/if}
 								<time>{relative(m.date)}</time>
 							</span>
 						</a>
+						<div class="row-actions">
+							{#if m.direction === 'ein'}
+								<form method="POST" action="?/gelesen" use:enhance={submit()}>
+									<input type="hidden" name="id" value={m.id} />
+									<input type="hidden" name="seen" value={unread ? 'ja' : ''} />
+									<button class="btn quiet sm icon" type="submit" title={unread ? 'Als gelesen markieren' : 'Als ungelesen markieren'} aria-label={unread ? 'Als gelesen markieren' : 'Als ungelesen markieren'}>
+										{#if unread}<MailOpen size={15} />{:else}<Mail size={15} />{/if}
+									</button>
+								</form>
+							{/if}
+							<form
+								method="POST"
+								action="?/loeschen"
+								use:enhance={submit(
+									recoverable
+										? {}
+										: { confirm: 'Mail löschen?', confirmDetail: m.direction === 'aus' ? 'Nur im Portal – die Kopie in deinem Postfach bleibt.' : 'Sie ist danach endgültig weg.' }
+								)}
+							>
+								<input type="hidden" name="id" value={m.id} />
+								<button class="btn quiet sm icon del" type="submit" title="Löschen" aria-label="Löschen"><Trash2 size={15} /></button>
+							</form>
+						</div>
 					</li>
 				{/each}
 			</ul>
@@ -133,8 +160,56 @@
 	}
 
 	.mails li {
+		position: relative;
 		animation: rise 0.4s var(--ease-out) both;
 		animation-delay: calc(min(var(--i), 15) * 25ms);
+	}
+
+	/* Gelesen/Löschen erscheinen beim Darüberfahren an der Stelle von Datum und Zuordnung */
+	.row-actions {
+		position: absolute;
+		top: 50%;
+		right: 1rem;
+		display: flex;
+		gap: 0.25rem;
+		transform: translateY(-50%);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s;
+	}
+
+	.mails li:hover .row-actions,
+	.mails li:focus-within .row-actions {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.mails li:hover .meta,
+	.mails li:focus-within .meta {
+		opacity: 0;
+	}
+
+	.del:hover {
+		color: var(--danger);
+	}
+
+	/* Ohne Maus: Knöpfe immer sichtbar, rechts neben der Mail */
+	@media (hover: none) {
+		.mails li {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			align-items: center;
+		}
+		.row-actions {
+			position: static;
+			padding-right: 0.75rem;
+			transform: none;
+			opacity: 1;
+			pointer-events: auto;
+		}
+		.mails li:focus-within .meta {
+			opacity: 1;
+		}
 	}
 
 	.mails a {
@@ -209,6 +284,7 @@
 		color: var(--dust-2);
 		font-size: 0.75rem;
 		white-space: nowrap;
+		transition: opacity 0.15s;
 	}
 
 	.chip.new {
