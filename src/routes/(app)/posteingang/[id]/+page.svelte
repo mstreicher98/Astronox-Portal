@@ -11,7 +11,7 @@
 
 	let { data } = $props();
 	const m = $derived(data.mail);
-	let mode = $state<'text' | 'html'>('text');
+	let mode = $state<'text' | 'html'>('html');
 	let replyOpen = $state(false);
 	let forward = $state(false);
 	let customerId = $state('');
@@ -23,7 +23,8 @@
 		void mailId;
 		untrack(() => {
 			customerId = data.mail.customerId ? String(data.mail.customerId) : '';
-			mode = data.mail.html && !data.mail.text ? 'html' : 'text';
+			// Standard ist das Original (HTML) – Text nur, wenn es keins gibt
+			mode = data.mail.html ? 'html' : 'text';
 			replyOpen = false;
 			editAssign = false;
 		});
@@ -136,8 +137,8 @@
 
 	{#if m.html && m.text}
 		<div class="view">
-			<button type="button" class:on={mode === 'text'} onclick={() => (mode = 'text')}>Text</button>
 			<button type="button" class:on={mode === 'html'} onclick={() => (mode = 'html')}>Original</button>
+			<button type="button" class:on={mode === 'text'} onclick={() => (mode = 'text')}>Text</button>
 		</div>
 	{/if}
 
