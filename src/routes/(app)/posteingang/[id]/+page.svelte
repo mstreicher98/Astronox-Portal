@@ -177,7 +177,6 @@
 		display: grid;
 		align-content: start;
 		gap: 1rem;
-		max-width: 62rem;
 		padding: 1rem 1.75rem 2.5rem;
 		animation: page-in 0.35s var(--ease-out) backwards;
 	}
