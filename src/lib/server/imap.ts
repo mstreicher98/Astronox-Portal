@@ -8,11 +8,12 @@ import { logActivity, notify } from './activity';
 import { customerByEmail } from './customers';
 import { db, FILES_DIR } from './db';
 import { files, mailMessages } from './db/schema';
+import { microsoftHint, microsoftToken } from './microsoft';
 import { decrypt } from './secret';
 import { getSetting, setSetting } from './settings';
 
 /**
- * Liest das Postfach office@astronox.dev über IMAP mit. Mails von bekannten
+ * Liest das Postfach office@astronox.dev über IMAP mit (Passwort oder Microsoft 365). Mails von bekannten
  * Kunden landen in deren Verlauf, alles andere im Posteingang „nicht zugeordnet“.
  * Im Postfach selbst wird nichts verändert oder gelöscht.
  */
@@ -24,7 +25,7 @@ async function connect(): Promise<ImapFlow | null> {
 		host: s.host,
 		port: s.port,
 		secure: s.secure,
-		auth: { user: s.user, pass: decrypt(s.password) },
+		auth: s.auth === 'microsoft' ? { user: s.user, accessToken: await microsoftToken(await getSetting('microsoft')) } : { user: s.user, pass: decrypt(s.password) },
 		logger: false,
 		connectionTimeout: 20_000,
 		greetingTimeout: 15_000,
@@ -32,6 +33,13 @@ async function connect(): Promise<ImapFlow | null> {
 	});
 	await c.connect();
 	return c;
+}
+
+/** Bei abgelehnter Anmeldung steht der Grund in responseText, nicht in message */
+async function errorText(err: unknown): Promise<string> {
+	const e = err as Error & { responseText?: string };
+	const msg = e.responseText || e.message;
+	return (await getSetting('imap')).auth === 'microsoft' ? microsoftHint(msg) : msg;
 }
 
 const first = (a: AddressObject | AddressObject[] | undefined) => (Array.isArray(a) ? a[0] : a)?.value?.[0];
@@ -99,7 +107,7 @@ export async function syncInbox(): Promise<{ fetched: number; error?: string }> 
 		await setSetting('imapStand', state);
 		return { fetched };
 	} catch (err) {
-		const msg = (err as Error).message;
+		const msg = await errorText(err);
 		console.error('[imap]', msg);
 		state.lastError = msg;
 		state.lastSync = new Date().toISOString();
@@ -192,6 +200,8 @@ async function store(source: Buffer, uid: number, mailbox: string, own: Set<stri
 export async function appendSent(raw: Buffer) {
 	const s = await getSetting('imap');
 	if (!s.enabled || !s.sentMailbox) return;
+	// Microsoft 365 legt über SMTP Gesendetes selbst in „Gesendete Elemente“ ab – sonst doppelt
+	if ((await getSetting('smtp')).auth === 'microsoft') return;
 	const c = await connect();
 	if (!c) return;
 	try {
@@ -213,6 +223,6 @@ export async function testImap(): Promise<{ ok: true; folders: string[] } | { ok
 			await c.logout().catch(() => {});
 		}
 	} catch (err) {
-		return { ok: false, error: (err as Error).message };
+		return { ok: false, error: await errorText(err) };
 	}
 }

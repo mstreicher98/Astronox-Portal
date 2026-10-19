@@ -6,6 +6,7 @@ import { logActivity } from './activity';
 import { db } from './db';
 import { mailMessages } from './db/schema';
 import { LOGO_PNG } from './mail-logo';
+import { microsoftHint, microsoftToken } from './microsoft';
 import { decrypt } from './secret';
 import { getSetting } from './settings';
 
@@ -37,11 +38,14 @@ export async function smtpReady(): Promise<boolean> {
 	return !!s.host;
 }
 
+/** Bei Microsoft 365 mit Zugangs-Token statt Passwort (wirft, wenn die Anmeldung bei Microsoft scheitert) */
 async function transporter() {
 	const s = await getSetting('smtp');
 	if (!s.host) return null;
-	const password = decrypt(s.password);
-	const key = JSON.stringify([s.host, s.port, s.secure, s.user, password]);
+	const ms = s.auth === 'microsoft';
+	const secret = ms ? await microsoftToken(await getSetting('microsoft')) : decrypt(s.password);
+	// Neues Token → neuer Transport (Nodemailer erneuert es nicht selbst)
+	const key = JSON.stringify([s.host, s.port, s.secure, s.user, ms, secret]);
 	if (!transport || transport.key !== key) {
 		transport = {
 			key,
@@ -49,7 +53,7 @@ async function transporter() {
 				host: s.host,
 				port: s.port,
 				secure: s.secure,
-				auth: s.user ? { user: s.user, pass: password } : undefined,
+				auth: !s.user ? undefined : ms ? { type: 'OAuth2' as const, user: s.user, accessToken: secret } : { user: s.user, pass: secret },
 				connectionTimeout: 15_000,
 				greetingTimeout: 15_000,
 				socketTimeout: 30_000
@@ -62,14 +66,19 @@ async function transporter() {
 
 /** Prüft die Verbindung zum Mailserver (Einstellungen → „Verbindung testen“) */
 export async function verifySmtp(): Promise<string | null> {
-	const tp = await transporter();
-	if (!tp) return 'Kein SMTP-Server eingetragen.';
 	try {
+		const tp = await transporter();
+		if (!tp) return 'Kein SMTP-Server eingetragen.';
 		await tp.t.verify();
 		return null;
 	} catch (err) {
-		return (err as Error).message;
+		return await smtpError(err);
 	}
+}
+
+async function smtpError(err: unknown): Promise<string> {
+	const msg = (err as Error).message;
+	return (await getSetting('smtp')).auth === 'microsoft' ? microsoftHint(msg) : msg;
 }
 
 /** Alle Mail-Texte samt Fußzeile (Einstellungen → E-Mail-Texte) */
@@ -83,7 +92,13 @@ export function mailHtml(text: string, footer: string, logo = `cid:${LOGO_CID}`)
 }
 
 export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: number; error?: string }> {
-	const tp = await transporter();
+	let tp: Awaited<ReturnType<typeof transporter>> = null;
+	let setupError: string | undefined;
+	try {
+		tp = await transporter();
+	} catch (err) {
+		setupError = (err as Error).message;
+	}
 	const smtp = await getSetting('smtp');
 	const { footer } = await getMailSettings();
 	const messageId = `<${randomUUID()}@astronox.dev>`;
@@ -110,14 +125,14 @@ export async function sendMail(m: OutgoingMail): Promise<{ ok: boolean; id: numb
 	let raw: Buffer | null = null;
 	if (!tp) {
 		status = 'fehler';
-		error = 'Kein SMTP-Server eingetragen (Einstellungen → E-Mail).';
+		error = setupError ?? 'Kein SMTP-Server eingetragen (Einstellungen → E-Mail).';
 	} else {
 		try {
 			raw = await new MailComposer(options).compile().build();
 			await tp.t.sendMail({ envelope: { from: tp.address, to: [m.to, ...(m.cc ? [m.cc] : [])] }, raw });
 		} catch (err) {
 			status = 'fehler';
-			error = (err as Error).message;
+			error = await smtpError(err);
 			console.error('[mail]', error);
 		}
 	}

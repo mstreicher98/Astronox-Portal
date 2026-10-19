@@ -1,12 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { MAIL_DEFAULTS, type MailSettings } from '$lib/shared/mails';
-import type { AnfrageSettings, FirmaSettings, ImapSettings, MonitorSettings, RechnungSettings, SmtpSettings, TermineSettings } from '$lib/shared/settings';
+import type { AnfrageSettings, FirmaSettings, ImapSettings, MicrosoftSettings, MonitorSettings, RechnungSettings, SmtpSettings, TermineSettings } from '$lib/shared/settings';
 import { db } from './db';
 import { settings } from './db/site';
 
 /**
  * Einstellungen in der gemeinsamen Tabelle „settings“ (JSON je Schlüssel).
- * termine, anfrage und smtp liest auch die Webseite – sie übernimmt Änderungen
+ * termine, anfrage, smtp und microsoft liest auch die Webseite – sie übernimmt Änderungen
  * innerhalb weniger Sekunden.
  */
 
@@ -14,6 +14,8 @@ export interface SettingsMap {
 	termine: TermineSettings;
 	anfrage: AnfrageSettings;
 	smtp: SmtpSettings;
+	/** App in Microsoft Entra für die Anmeldung bei Microsoft 365 (SMTP und IMAP) */
+	microsoft: MicrosoftSettings;
 	firma: FirmaSettings;
 	rechnung: RechnungSettings;
 	imap: ImapSettings;
@@ -30,7 +32,8 @@ export interface SettingsMap {
 export const DEFAULTS: { [K in keyof SettingsMap]: SettingsMap[K] } = {
 	termine: { hours: [], duration: 30, buffer: 0, leadHours: 24, days: 28, blocked: [], holidays: true, videoLink: '', calendarKey: '' },
 	anfrage: { projectTypes: [], budgets: [], timeframes: [] },
-	smtp: { host: '', port: 587, secure: false, user: '', password: '', from: 'office@astronox.dev', fromName: 'Astronox Development', inbox: 'office@astronox.dev' },
+	smtp: { host: '', port: 587, secure: false, user: '', password: '', from: 'office@astronox.dev', fromName: 'Astronox Development', inbox: 'office@astronox.dev', auth: 'passwort' },
+	microsoft: { tenantId: '', clientId: '', clientSecret: '', objectId: '', secretExpires: '' },
 	firma: {
 		name: 'Astronox Development',
 		owner: 'Matthias Streicher',
@@ -64,7 +67,7 @@ export const DEFAULTS: { [K in keyof SettingsMap]: SettingsMap[K] } = {
 		invoiceOutro: 'Bitte überweisen Sie den Betrag bis zum angegebenen Fälligkeitsdatum unter Angabe der Rechnungsnummer.'
 	},
 	mails: MAIL_DEFAULTS,
-	imap: { enabled: false, host: '', port: 993, secure: true, user: '', password: '', mailbox: 'INBOX', sentMailbox: 'Sent' },
+	imap: { enabled: false, host: '', port: 993, secure: true, user: '', password: '', mailbox: 'INBOX', sentMailbox: 'Sent', auth: 'passwort' },
 	monitor: { warnDays: 21 },
 	push: { publicKey: '', privateKey: '' },
 	sync: { inquiryId: 0, bookingId: 0, cancelledAt: '', quoteResponseId: 0 },

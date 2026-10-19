@@ -61,6 +61,11 @@ export async function expiryWarnings() {
 		if (Date.parse(m.sslExpiresAt!) - Date.now() > 14 * 86_400_000) continue;
 		await warnOnce(`Zertifikat läuft ab: ${m.name}`, `am ${date(dayOf(m.sslExpiresAt!))}`, '/hosting');
 	}
+	// Ohne gültigen Schlüssel gehen keine Mails mehr raus – früh genug erinnern
+	const ms = await getSetting('microsoft');
+	if (ms.clientSecret && ms.secretExpires && ms.secretExpires <= addDays(today(), Math.max(warnDays, 30))) {
+		await warnOnce('Microsoft-365-Schlüssel läuft ab', `am ${date(ms.secretExpires)} – in Entra einen neuen anlegen und unter Einstellungen → E-Mail eintragen`, '/einstellungen/email');
+	}
 }
 
 async function daily() {

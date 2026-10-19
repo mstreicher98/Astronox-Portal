@@ -30,6 +30,9 @@ export interface AnfrageSettings {
 	timeframes: Choice[];
 }
 
+/** Anmeldung beim Mailserver: Benutzer + Passwort oder Microsoft 365 (OAuth) */
+export type MailAuth = 'passwort' | 'microsoft';
+
 export interface SmtpSettings {
 	host: string;
 	port: number;
@@ -41,6 +44,22 @@ export interface SmtpSettings {
 	fromName: string;
 	/** Empfänger für Anfragen und Buchungen */
 	inbox: string;
+	/** fehlt bei älteren Einträgen = passwort */
+	auth?: MailAuth;
+}
+
+/** App-Registrierung in Microsoft Entra – für die Anmeldung bei Microsoft 365 */
+export interface MicrosoftSettings {
+	/** Verzeichnis-ID (Mandant) */
+	tenantId: string;
+	/** Anwendungs-ID (Client) */
+	clientId: string;
+	/** verschlüsselt („v1:…“) */
+	clientSecret: string;
+	/** Objekt-ID der Unternehmensanwendung – nur für die Befehle in der Anleitung */
+	objectId: string;
+	/** Ablauf des geheimen Schlüssels (YYYY-MM-DD) – das Portal erinnert rechtzeitig */
+	secretExpires: string;
 }
 
 /* ------------------------------------------------------------------ nur Portal */
@@ -95,6 +114,8 @@ export interface ImapSettings {
 	mailbox: string;
 	/** Gesendete Mails aus dem Portal dort ablegen (leer = nicht ablegen) */
 	sentMailbox: string;
+	/** fehlt bei älteren Einträgen = passwort */
+	auth?: MailAuth;
 }
 
 export interface MonitorSettings {
