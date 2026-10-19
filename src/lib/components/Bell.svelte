@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { goto, invalidate } from '$app/navigation';
-	import { Bell, CalendarDays, CheckCheck, FileText, Mail, MessageSquarePlus, ServerCrash, TriangleAlert } from '@lucide/svelte';
+	import { Bell, CalendarDays, CheckCheck, FileText, Mail, MessageSquarePlus, ServerCrash, Trash2, TriangleAlert, X } from '@lucide/svelte';
 	import { fly } from 'svelte/transition';
 	import type { Notification } from '$lib/server/db/schema';
 	import { relative } from '$lib/shared/format';
 	import { outside } from '$lib/ui/actions';
+import { ask } from '$lib/ui/confirm.svelte';
 
 	let { notifications }: { notifications: { unread: number; recent: Notification[] } } = $props();
 	let open = $state(false);
@@ -27,6 +28,13 @@
 		await invalidate('app:shell');
 	}
 
+	/** Eine löschen – ohne Angabe alle (mit Rückfrage) */
+	async function remove(n?: Notification) {
+		if (!n && !(await ask('Alle Benachrichtigungen löschen?', { confirm: 'Löschen', danger: true }))) return;
+		await fetch('/api/benachrichtigungen', { method: 'DELETE', body: JSON.stringify(n ? { id: n.id } : {}), headers: { 'content-type': 'application/json' } });
+		await invalidate('app:shell');
+	}
+
 	async function openOne(n: Notification) {
 		open = false;
 		if (!n.readAt) await fetch('/api/benachrichtigungen', { method: 'POST', body: JSON.stringify({ id: n.id }), headers: { 'content-type': 'application/json' } });
@@ -44,7 +52,10 @@
 		<div class="panel" transition:fly={{ y: -8, duration: 220 }}>
 			<div class="spread head">
 				<strong>Benachrichtigungen</strong>
-				{#if notifications.unread}<button class="btn quiet sm" type="button" onclick={readAll}><CheckCheck size={15} /> Alle gelesen</button>{/if}
+				<div class="row">
+					{#if notifications.unread}<button class="btn quiet sm" type="button" onclick={readAll}><CheckCheck size={15} /> Alle gelesen</button>{/if}
+					{#if notifications.recent.length}<button class="btn quiet sm icon" type="button" title="Alle löschen" aria-label="Alle löschen" onclick={() => remove()}><Trash2 size={15} /></button>{/if}
+				</div>
 			</div>
 			{#if notifications.recent.length}
 				<ul class="list">
@@ -59,6 +70,7 @@
 								</span>
 								<time>{relative(n.createdAt)}</time>
 							</button>
+							<button class="del" type="button" title="Löschen" aria-label="Benachrichtigung löschen" onclick={() => remove(n)}><X size={15} /></button>
 						</li>
 					{/each}
 				</ul>
@@ -120,11 +132,60 @@
 	}
 
 	li {
+		position: relative;
 		animation: rise 0.4s var(--ease-out) both;
 		animation-delay: calc(var(--i) * 30ms);
 	}
 
-	li button {
+	/* Löschen erscheint beim Darüberfahren an der Stelle der Zeit */
+	.del {
+		position: absolute;
+		top: 0.55rem;
+		right: 0.6rem;
+		display: grid;
+		place-items: center;
+		width: 1.7rem;
+		height: 1.7rem;
+		border: 0;
+		border-radius: 8px;
+		background: transparent;
+		color: var(--dust);
+		opacity: 0;
+		cursor: pointer;
+		transition:
+			opacity 0.15s,
+			color 0.15s,
+			background-color 0.15s;
+	}
+
+	li:hover .del,
+	.del:focus-visible {
+		opacity: 1;
+	}
+
+	li:hover time {
+		opacity: 0;
+	}
+
+	.del:hover {
+		background: rgb(var(--danger-rgb) / 0.12);
+		color: var(--danger);
+	}
+
+	/* Ohne Maus: Löschen immer sichtbar, die Zeit rückt davor */
+	@media (hover: none) {
+		.del {
+			opacity: 1;
+		}
+		li > button:first-child {
+			padding-right: 2.6rem;
+		}
+		li:hover time {
+			opacity: 1;
+		}
+	}
+
+	li > button:first-child {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: start;

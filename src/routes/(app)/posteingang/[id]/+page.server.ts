@@ -8,6 +8,9 @@ import { deleteMails, queueSeen } from '$lib/server/imap';
 import { getSetting } from '$lib/server/settings';
 import type { Actions, PageServerLoad } from './$types';
 
+/** Zurück in die Liste, im selben Ordner */
+const back = (ansicht: string | null) => (ansicht && /^[a-z]+$/.test(ansicht) ? `/posteingang?ansicht=${ansicht}` : '/posteingang');
+
 async function mail(id: string) {
 	const [m] = await db.select().from(mailMessages).where(eq(mailMessages.id, Number(id)));
 	if (!m) error(404, 'Diese Mail gibt es nicht.');
@@ -16,10 +19,7 @@ async function mail(id: string) {
 
 export const load: PageServerLoad = async ({ params }) => {
 	const m = await mail(params.id);
-	if (!m.seen) {
-		await db.update(mailMessages).set({ seen: true }).where(eq(mailMessages.id, m.id));
-		queueSeen([m], true);
-	}
+	// gelesen markiert +layout.server.ts – dort wird gleich danach gezählt
 	const att: { fileId?: number; name: string; size: number }[] = JSON.parse(m.attachments || '[]');
 	const fileIds = att.map((a) => a.fileId).filter((x): x is number => !!x);
 	const [customer] = m.customerId ? await db.select().from(customers).where(eq(customers.id, m.customerId)) : [];
@@ -78,19 +78,20 @@ export const actions: Actions = {
 		return { message: m.ignored ? 'Wieder im Eingang' : 'Ausgeblendet' };
 	}),
 
-	ungelesen: act(async ({ params }) => {
+	// Zurück zur Liste – bliebe die Mail offen, wäre sie beim Neuladen gleich wieder gelesen
+	ungelesen: act(async ({ params }, f) => {
 		const m = await mail(params.id);
 		await db.update(mailMessages).set({ seen: false }).where(eq(mailMessages.id, m.id));
 		queueSeen([m], false);
-		return { message: 'Als ungelesen markiert' };
+		redirect(303, back(f.str('ansicht', 20)));
 	}),
 
-	loeschen: act(async ({ params }) => {
+	loeschen: act(async ({ params }, f) => {
 		const m = await mail(params.id);
 		const r = await deleteMails([m.id]);
 		if (r.mailboxError) {
 			await notify({ kind: 'system', title: 'Mail im Postfach nicht gelöscht', body: `„${m.subject}“: ${r.mailboxError}`, push: false });
 		}
-		redirect(303, m.direction === 'aus' ? '/posteingang?ansicht=gesendet' : '/posteingang');
+		redirect(303, back(f.str('ansicht', 20)));
 	})
 };
