@@ -17,6 +17,7 @@ export const SERVICE_COLORS: Record<ServiceId, string> = {
 export const nav = [
 	{ href: '#leistungen', label: 'Leistungen' },
 	{ href: '#ablauf', label: 'Ablauf' },
+	{ href: '#referenzen', label: 'Referenzen' },
 	{ href: '#pakete', label: 'Pakete' },
 	{ href: '#ueber-mich', label: 'Über mich' },
 	{ href: '#kontakt', label: 'Kontakt' }
