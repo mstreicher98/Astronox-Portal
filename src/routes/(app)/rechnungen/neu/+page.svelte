@@ -3,12 +3,11 @@
 	import { ArrowRight } from '@lucide/svelte';
 	import { submit } from '$lib/ui/form';
 	import { glow } from '$lib/ui/actions';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 
 	let { data } = $props();
 	let type = $state('rechnung');
-	$effect(() => {
-		type = data.type;
-	});
+	onServerChange(() => data.type, () => (type = data.type));
 	let customerId = $state('');
 	const projects = $derived(data.projects.filter((p) => String(p.customerId) === customerId));
 </script>

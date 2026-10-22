@@ -5,13 +5,12 @@
 	import type { AnfrageSettings, Choice } from '$lib/shared/settings';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 
 	let { data } = $props();
 	const fresh = (): AnfrageSettings => structuredClone(data.anfrage);
 	let v = $state(fresh());
-	$effect(() => {
-		v = fresh();
-	});
+	onServerChange(() => data.anfrage, () => (v = fresh()));
 	const blank = (): Choice => ({ id: '', label: '', hint: '' });
 </script>
 

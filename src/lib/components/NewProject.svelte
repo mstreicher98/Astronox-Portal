@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Plus } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import Modal from './Modal.svelte';
 	import { PROJECT_KINDS, STAGES, type StageId } from '$lib/shared/stages';
 	import { submit } from '$lib/ui/form';
@@ -16,8 +17,9 @@
 
 	let mode = $state<'vorhanden' | 'neu'>('vorhanden');
 	let kind = $state<'firma' | 'privat'>('firma');
+	// nur beim Öffnen – `customers` ändert sich auch beim Neuladen der Zähler
 	$effect(() => {
-		if (open) mode = customers.length ? 'vorhanden' : 'neu';
+		if (open) untrack(() => (mode = customers.length ? 'vorhanden' : 'neu'));
 	});
 </script>
 

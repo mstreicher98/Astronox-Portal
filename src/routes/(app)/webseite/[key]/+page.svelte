@@ -9,6 +9,7 @@
 	import type { Package, Reference, Service, SiteContent } from '$lib/shared/site';
 	import { autosize, glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 
 	let { data } = $props();
 
@@ -16,10 +17,8 @@
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const fresh = (): any => structuredClone(data.value);
 	let v = $state(fresh());
-	// nach Speichern/Verwerfen neu übernehmen
-	$effect(() => {
-		v = fresh();
-	});
+	// nach Speichern/Verwerfen oder in einem anderen Abschnitt neu übernehmen
+	onServerChange(() => [data.key, data.value], () => (v = fresh()));
 	let version = $state(0);
 	const dirty = $derived(JSON.stringify(v) !== JSON.stringify(data.value));
 	const json = $derived(JSON.stringify(v));
@@ -41,6 +40,11 @@
 	const k = $derived(data.key as keyof SiteContent);
 	const isLegal = $derived(k === 'impressum' || k === 'datenschutz');
 	const done = () => version++;
+	// Verwerfen setzt auch dann zurück, wenn der Entwurf gleich wie die veröffentlichte Fassung war
+	const discarded = () => {
+		v = fresh();
+		version++;
+	};
 </script>
 
 <svelte:head><title>{data.info.label} – Webseite</title></svelte:head>
@@ -57,7 +61,7 @@
 		</div>
 		<div class="actions">
 			{#if data.hasDraft}
-				<form method="POST" action="?/verwerfen" use:enhance={submit({ confirm: 'Entwurf verwerfen?', done })}><button class="btn quiet sm" type="submit"><Undo2 size={15} /> Verwerfen</button></form>
+				<form method="POST" action="?/verwerfen" use:enhance={submit({ confirm: 'Entwurf verwerfen?', done: discarded })}><button class="btn quiet sm" type="submit"><Undo2 size={15} /> Verwerfen</button></form>
 			{/if}
 		</div>
 	</div>

@@ -3,6 +3,7 @@
 	import { CalendarClock, Copy, Link, Plus, X } from '@lucide/svelte';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data } = $props();
@@ -25,9 +26,7 @@
 		return w;
 	};
 	let week = $state(toWeek());
-	$effect(() => {
-		week = toWeek();
-	});
+	onServerChange(() => data.termine.hours, () => (week = toWeek()));
 	const json = $derived(JSON.stringify(DAYS.flatMap((d) => (week[d.wd] ?? []).map((r) => ({ weekday: d.wd, ...r })))));
 	const slots = $derived(
 		DAYS.reduce((s, d) => s + (week[d.wd] ?? []).reduce((a, r) => {

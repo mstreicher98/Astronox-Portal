@@ -1,13 +1,12 @@
 <script lang="ts">
 	import type { Customer } from '$lib/server/db/schema';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 
 	/** Stammdaten eines Kunden – für „Neu“ und „Bearbeiten“ */
 	let { customer = null, withContact = false }: { customer?: Customer | null; withContact?: boolean } = $props();
 	const initial = () => customer?.kind ?? 'firma';
 	let kind = $state<'firma' | 'privat'>(initial());
-	$effect(() => {
-		kind = initial();
-	});
+	onServerChange(() => [customer?.id, customer?.kind], () => (kind = initial()));
 </script>
 
 <div class="form-grid">

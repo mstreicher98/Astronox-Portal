@@ -8,6 +8,7 @@
 	import { DOC_STATUS } from '$lib/shared/stages';
 	import { autosize, glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data } = $props();
@@ -37,11 +38,14 @@
 	let rows = $state<Row[]>(initial().rows);
 	let taxMode = $state<'klein' | 'ust'>(initial().taxMode);
 	let taxRate = $state(initial().taxRate);
-	$effect(() => {
-		rows = data.items.map(toRow);
-		taxMode = data.doc.taxMode;
-		taxRate = String(data.doc.taxRate);
-	});
+	onServerChange(
+		() => [data.doc.id, data.items, data.doc.taxMode, data.doc.taxRate],
+		() => {
+			rows = data.items.map(toRow);
+			taxMode = data.doc.taxMode;
+			taxRate = String(data.doc.taxRate);
+		}
+	);
 
 	const lineTotal = (r: Row) => Math.round((parseNumber(r.quantity) ?? 0) * (parseMoney(r.price) ?? 0));
 	const net = $derived(rows.reduce((s, r) => s + lineTotal(r), 0));

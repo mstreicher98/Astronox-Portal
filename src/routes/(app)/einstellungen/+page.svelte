@@ -6,14 +6,13 @@
 	import { documentNumber } from '$lib/shared/numbers';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 
 	let { data } = $props();
 	const f = $derived(data.firma);
 	const r = $derived(data.rechnung);
 	let taxMode = $state<'klein' | 'ust'>('klein');
-	$effect(() => {
-		taxMode = data.rechnung.taxMode;
-	});
+	onServerChange(() => data.rechnung.taxMode, () => (taxMode = data.rechnung.taxMode));
 	const year = new Date().getFullYear();
 	// Vorschau der Nummern beim Tippen
 	const r0 = untrack(() => data.rechnung);

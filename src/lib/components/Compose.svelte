@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { FileText, Paperclip, Send, X } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import Modal from './Modal.svelte';
 	import type { MailTemplate } from '$lib/server/db/schema';
 	import { autosize } from '$lib/ui/actions';
@@ -49,13 +50,16 @@
 
 	const fill = (s: string) => s.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (all, k: string) => values[k] ?? all);
 
+	// Nur beim Öffnen füllen – die Werte kommen oft aus `data`, das sich beim Neuladen der Zähler ändert
 	$effect(() => {
 		if (!open) return;
-		form = { to, cc: '', subject, text, attachDocument: !!documentId };
-		files = [];
-		void api<MailTemplate[]>('/api/vorlagen').then((t) => {
-			templates = t;
-			if (template) choose(template);
+		untrack(() => {
+			form = { to, cc: '', subject, text, attachDocument: !!documentId };
+			files = [];
+			void api<MailTemplate[]>('/api/vorlagen').then((t) => {
+				templates = t;
+				if (template) choose(template);
+			});
 		});
 	});
 

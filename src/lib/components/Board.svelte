@@ -25,6 +25,7 @@
 	import { moneyShort, relative, today } from '$lib/shared/format';
 	import { STAGES, kindLabel, type StageId } from '$lib/shared/stages';
 	import { api } from '$lib/ui/form';
+	import { onServerChange } from '$lib/ui/sync.svelte';
 	import { toast } from '$lib/ui/toast.svelte';
 
 	/**
@@ -37,9 +38,7 @@
 
 	const copy = () => cards.map((c) => ({ ...c }));
 	let local = $state<Card[]>(copy());
-	$effect(() => {
-		local = copy();
-	});
+	onServerChange(() => cards, () => (local = copy()));
 
 	const columns = $derived(
 		STAGES.map((s) => ({
