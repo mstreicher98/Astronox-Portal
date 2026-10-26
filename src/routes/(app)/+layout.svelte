@@ -8,6 +8,7 @@
 		FolderKanban,
 		Globe,
 		Inbox,
+		KeyRound,
 		LayoutDashboard,
 		ListChecks,
 		LogOut,
@@ -71,7 +72,12 @@
 				{ href: '/webseite', label: 'Webseite', icon: Globe }
 			]
 		},
-		{ items: [{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }] }
+		{
+			items: [
+				{ href: '/passwoerter', label: 'Passwörter', icon: KeyRound },
+				{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }
+			]
+		}
 	]);
 	const nav = $derived(groups.flatMap((g) => g.items));
 	const indexOf = (item: NavItem) => nav.indexOf(item);

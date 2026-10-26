@@ -20,6 +20,7 @@
 		{ kind: 'aktion', title: 'Neue Rechnung', href: '/rechnungen/neu?typ=rechnung' },
 		{ kind: 'aktion', title: 'Neue Ausgabe', href: '/einnahmen-ausgaben?tab=buchungen&neu=ausgabe' },
 		{ kind: 'aktion', title: 'Neue Einnahme', href: '/einnahmen-ausgaben?tab=buchungen&neu=einnahme' },
+		{ kind: 'aktion', title: 'Neues Passwort', href: '/passwoerter?neu=1' },
 		{ kind: 'seite', title: 'Cockpit', href: '/' },
 		{ kind: 'seite', title: 'Pipeline', href: '/pipeline' },
 		{ kind: 'seite', title: 'Projekte', href: '/projekte' },
@@ -35,6 +36,7 @@
 		{ kind: 'seite', title: 'Hosting & Wartung', href: '/hosting' },
 		{ kind: 'seite', title: 'Webseite bearbeiten', href: '/webseite' },
 		{ kind: 'seite', title: 'Besucherstatistik', href: '/webseite/statistik' },
+		{ kind: 'seite', title: 'Passwörter', href: '/passwoerter' },
 		{ kind: 'seite', title: 'Einstellungen', href: '/einstellungen' }
 	];
 

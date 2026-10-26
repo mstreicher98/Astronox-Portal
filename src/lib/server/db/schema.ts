@@ -613,6 +613,41 @@ export const assets = sqliteTable('assets', {
 	createdAt: created()
 });
 
+/* ------------------------------------------------------------------ Passwort-Tresor */
+
+/**
+ * Persönlicher Tresor je Konto. Verschlüsselt wird im Browser mit dem Master-Passwort
+ * (PBKDF2 → AES-256-GCM, siehe $lib/shared/tresor) – hier liegt nur Chiffretext.
+ */
+export const vaults = sqliteTable('vaults', {
+	userId: integer('user_id')
+		.primaryKey()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	salt: text('salt').notNull(),
+	iterations: integer('iterations').notNull(),
+	/** bekannter Text, verschlüsselt – damit lässt sich das Master-Passwort prüfen */
+	checkIv: text('check_iv').notNull(),
+	check: text('check').notNull(),
+	createdAt: created(),
+	updatedAt: updated()
+});
+
+/** Ein Eintrag = ein verschlüsseltes JSON (Titel, Benutzer, Passwort, Links, Notizen …) */
+export const vaultItems = sqliteTable(
+	'vault_items',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		iv: text('iv').notNull(),
+		data: text('data').notNull(),
+		createdAt: created(),
+		updatedAt: updated()
+	},
+	(t) => [index('vault_items_user_idx').on(t.userId)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
