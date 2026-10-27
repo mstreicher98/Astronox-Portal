@@ -660,6 +660,28 @@ export const vaults = sqliteTable('vaults', {
 	updatedAt: updated()
 });
 
+/**
+ * Tresor mit Fingerabdruck auf Geräten, deren Passwort-Manager kein WebAuthn-PRF kann:
+ * der Tresor-Schlüssel ist mit einem Schlüssel verpackt, der nur auf dem Gerät liegt (nicht
+ * exportierbar). Den verpackten Teil gibt der Server erst nach geprüftem Passkey heraus.
+ */
+export const vaultDevices = sqliteTable(
+	'vault_devices',
+	{
+		/** Zufallswert, liegt auch auf dem Gerät */
+		id: text('id').primaryKey(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		iv: text('iv').notNull(),
+		data: text('data').notNull(),
+		createdAt: created(),
+		lastUsedAt: text('last_used_at')
+	},
+	(t) => [index('vault_devices_user_idx').on(t.userId)]
+);
+
 /** Ein Eintrag = ein verschlüsseltes JSON (Titel, Benutzer, Passwort, Links, Notizen …) */
 export const vaultItems = sqliteTable(
 	'vault_items',

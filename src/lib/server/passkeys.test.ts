@@ -1,7 +1,7 @@
 import { createHash, generateKeyPairSync, randomBytes, sign, type KeyObject } from 'node:crypto';
 import { isoBase64URL, isoCBOR } from '@simplewebauthn/server/helpers';
 import { describe, expect, it } from 'vitest';
-import { deviceName, loginOptions, registrationOptions, relyingParty, verifyLogin, verifyNew } from './passkeys';
+import { deviceName, loginOptions, registrationOptions, relyingParty, vaultOptions, verifyLogin, verifyNew, verifyVault } from './passkeys';
 
 /** Ein Authenticator in Software – signiert wie ein Handy mit Fingerabdruck */
 class SoftAuthenticator {
@@ -99,6 +99,17 @@ describe('Passkeys', () => {
 		const { challenge } = await loginOptions(rp);
 		await expect(verifyLogin(rp, auth.get(challenge, 'https://evil.example'), stored)).rejects.toThrow();
 		await expect(verifyLogin(rp, auth.get(isoBase64URL.fromBuffer(randomBytes(32))), stored)).rejects.toThrow();
+	});
+
+	it('gibt den Tresor nur für das eigene Konto und nicht mit einer Anmelde-Challenge frei', async () => {
+		const { auth, stored } = await registered();
+		const own = await vaultOptions(rp, user.id, [{ id: stored.id, transports: stored.transports }]);
+		expect(own.allowCredentials?.map((c) => c.id)).toEqual([stored.id]);
+		expect(await verifyVault(rp, user.id, auth.get(own.challenge), stored)).not.toBeNull();
+		const other = await vaultOptions(rp, 99, []);
+		await expect(verifyVault(rp, user.id, auth.get(other.challenge), stored)).rejects.toThrow();
+		const login = await loginOptions(rp);
+		await expect(verifyVault(rp, user.id, auth.get(login.challenge), stored)).rejects.toThrow();
 	});
 
 	it('Einrichten gilt nur für das Konto, das es begonnen hat', async () => {

@@ -24,7 +24,8 @@ export const relyingParty = (url: URL): RelyingParty => ({ origin: url.origin, r
 
 /* ------------------------------------------------------------------ Challenges: einmalig, 5 Minuten */
 
-type Purpose = 'neu' | 'anmelden';
+/** neu = einrichten, anmelden = ohne Konto, tresor = Tresor-Teil freigeben (angemeldet) */
+type Purpose = 'neu' | 'anmelden' | 'tresor';
 const pending = new Map<string, { purpose: Purpose; userId: number | null; exp: number }>();
 
 function remember(challenge: string, purpose: Purpose, userId: number | null) {
@@ -77,6 +78,8 @@ export async function verifyNew(rp: RelyingParty, userId: number, response: Regi
 
 /* ------------------------------------------------------------------ Anmelden */
 
+type Stored = { id: string; publicKey: string; counter: number; transports: string[] };
+
 export async function loginOptions(rp: RelyingParty) {
 	// ohne Liste: das Handy bietet die Passkeys für diese Seite selbst an
 	const options = await generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'required' });
@@ -84,10 +87,22 @@ export async function loginOptions(rp: RelyingParty) {
 	return options;
 }
 
-export async function verifyLogin(rp: RelyingParty, response: AuthenticationResponseJSON, stored: { id: string; publicKey: string; counter: number; transports: string[] }) {
+export const verifyLogin = (rp: RelyingParty, response: AuthenticationResponseJSON, stored: Stored) => verifyAssertion(rp, 'anmelden', null, response, stored);
+
+/* ------------------------------------------------------------------ Tresor freigeben (angemeldet) */
+
+export async function vaultOptions(rp: RelyingParty, userId: number, allow: { id: string; transports: string[] }[]) {
+	const options = await generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'required', allowCredentials: allow });
+	remember(options.challenge, 'tresor', userId);
+	return options;
+}
+
+export const verifyVault = (rp: RelyingParty, userId: number, response: AuthenticationResponseJSON, stored: Stored) => verifyAssertion(rp, 'tresor', userId, response, stored);
+
+async function verifyAssertion(rp: RelyingParty, purpose: Purpose, userId: number | null, response: AuthenticationResponseJSON, stored: Stored) {
 	const v = await verifyAuthenticationResponse({
 		response,
-		expectedChallenge: (c) => consume(c, 'anmelden', null),
+		expectedChallenge: (c) => consume(c, purpose, userId),
 		expectedOrigin: rp.origin,
 		expectedRPID: rp.rpID,
 		credential: { id: stored.id, publicKey: isoBase64URL.toBuffer(stored.publicKey), counter: stored.counter, transports: stored.transports as never },

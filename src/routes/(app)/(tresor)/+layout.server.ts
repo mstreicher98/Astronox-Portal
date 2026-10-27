@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { passkeys, vaultItems, vaults } from '$lib/server/db/schema';
+import { passkeys, vaultDevices, vaultItems, vaults } from '$lib/server/db/schema';
 import type { LayoutServerLoad } from './$types';
 
 /** Passwörter und Authenticator teilen sich den Tresor – nur Chiffretext, entschlüsselt wird im Browser */
@@ -16,6 +16,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		: [];
 	// Passkeys: zum Einschalten alle, zum Entsperren die mit verpacktem Tresor-Schlüssel
 	const keys = vault ? await db.select().from(passkeys).where(eq(passkeys.userId, userId)) : [];
+	// Geräte mit gerätegebundenem Schlüssel (ohne PRF) – nur Kennung und Name, das Paket gibt es erst nach dem Fingerabdruck
+	const devices = vault ? await db.select({ id: vaultDevices.id, name: vaultDevices.name }).from(vaultDevices).where(eq(vaultDevices.userId, userId)) : [];
 	return {
 		vault: vault ? { salt: vault.salt, iterations: vault.iterations, check: { iv: vault.checkIv, data: vault.check } } : null,
 		items,
@@ -25,6 +27,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			// alle Passkeys haben beim Einrichten gemeldet: kein PRF
 			noPrf: keys.length > 0 && keys.every((k) => k.prf === false),
 			unlock: keys.flatMap((k) => (k.prfSalt && k.vaultIv && k.vaultKey ? [{ id: k.id, name: k.name, salt: k.prfSalt, iv: k.vaultIv, data: k.vaultKey }] : []))
-		}
+		},
+		devices
 	};
 };

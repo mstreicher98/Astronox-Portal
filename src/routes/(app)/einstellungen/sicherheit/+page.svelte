@@ -24,10 +24,9 @@
 		e.preventDefault();
 		pkBusy = true;
 		try {
-			const { name, prf } = await registerPasskey(pkCode);
+			const { name } = await registerPasskey(pkCode);
 			pkCode = '';
-			if (prf === false) toast(`Eingerichtet: ${name} – zum Anmelden. Den Tresor kann dieser Passwort-Manager nicht entsperren (kein WebAuthn-PRF).`, 'ok', 9000);
-			else toast(`Eingerichtet: ${name}. Den Tresor schaltest du beim nächsten Entsperren dazu.`, 'ok', 6000);
+			toast(`Eingerichtet: ${name}. Den Tresor schaltest du beim nächsten Entsperren dazu.`, 'ok', 6000);
 			await invalidateAll();
 		} catch (err) {
 			if (err instanceof Error && err.name !== 'Error') toast(passkeyProblem(err), 'error', 9000);
@@ -105,7 +104,7 @@
 				<li class="spread small pk">
 					<span>
 						<strong>{p.name}</strong> · eingerichtet {relative(p.createdAt)}{#if p.lastUsedAt} · zuletzt {relative(p.lastUsedAt)}{/if}
-						{#if p.vault}<span class="badge info">entsperrt den Tresor</span>{:else if p.prf === false}<span class="badge warn" title="Der Passwort-Manager liefert kein Geheimnis für den Tresor (WebAuthn-PRF)">kann den Tresor nicht</span>{/if}
+						{#if p.vault}<span class="badge info">entsperrt den Tresor</span>{:else if p.prf === false}<span class="badge" title="Der Passwort-Manager liefert kein WebAuthn-PRF – der Tresor geht trotzdem mit Fingerabdruck auf, wird aber auf jedem Gerät einzeln eingeschaltet">Tresor je Gerät</span>{/if}
 					</span>
 					<form method="POST" action="?/passkey_loeschen" use:enhance={submit({ confirm: `Passkey „${p.name}“ löschen?`, confirmDetail: 'Auf diesem Gerät geht die Anmeldung dann wieder nur mit Passwort und Code.' })}>
 						<input type="hidden" name="id" value={p.id} />

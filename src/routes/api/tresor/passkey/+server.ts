@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { passkeys } from '$lib/server/db/schema';
+import { passkeys, vaultDevices } from '$lib/server/db/schema';
 import { body, requireVault, sealed } from '$lib/server/tresor';
 import type { RequestHandler } from './$types';
 
@@ -27,8 +27,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	return json({ ok: true });
 };
 
-/** Entsperren mit Fingerabdruck ausschalten – für alle Passkeys */
+/** Entsperren mit Fingerabdruck ausschalten – für alle Passkeys und Geräte */
 export const DELETE: RequestHandler = async ({ locals }) => {
-	await db.update(passkeys).set({ prfSalt: null, vaultIv: null, vaultKey: null }).where(eq(passkeys.userId, locals.user!.id));
+	const userId = locals.user!.id;
+	await db.batch([
+		db.update(passkeys).set({ prfSalt: null, vaultIv: null, vaultKey: null }).where(eq(passkeys.userId, userId)),
+		db.delete(vaultDevices).where(eq(vaultDevices.userId, userId))
+	]);
 	return json({ ok: true });
 };

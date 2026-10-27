@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { passkeys, vaultItems, vaults } from '$lib/server/db/schema';
+import { passkeys, vaultDevices, vaultItems, vaults } from '$lib/server/db/schema';
 import { body, keyParams, sealed } from '$lib/server/tresor';
 import type { RequestHandler } from './$types';
 
@@ -34,6 +34,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		db.update(vaults).set({ salt, iterations, checkIv: check.iv, check: check.data, updatedAt }).where(eq(vaults.userId, userId)),
 		// mit dem alten Schlüssel verpackt – Entsperren mit Fingerabdruck danach neu einrichten
 		db.update(passkeys).set(noWrap).where(eq(passkeys.userId, userId)),
+		db.delete(vaultDevices).where(eq(vaultDevices.userId, userId)),
 		...items.map((i) => db.update(vaultItems).set({ iv: i.iv, data: i.data }).where(and(eq(vaultItems.id, i.id), eq(vaultItems.userId, userId))))
 	]);
 	return json({ ok: true });
@@ -47,7 +48,8 @@ export const DELETE: RequestHandler = async ({ locals }) => {
 	await db.batch([
 		db.delete(vaultItems).where(eq(vaultItems.userId, userId)),
 		db.delete(vaults).where(eq(vaults.userId, userId)),
-		db.update(passkeys).set(noWrap).where(eq(passkeys.userId, userId))
+		db.update(passkeys).set(noWrap).where(eq(passkeys.userId, userId)),
+		db.delete(vaultDevices).where(eq(vaultDevices.userId, userId))
 	]);
 	return json({ ok: true });
 };

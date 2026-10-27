@@ -28,6 +28,7 @@
 	import { glow } from '$lib/ui/actions';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { api } from '$lib/ui/form';
+	import { bindDevice, deviceKey, forgetDevice, openWithDevice } from '$lib/ui/geraet';
 	import { passkeyProblem, passkeysSupported, prfSecret } from '$lib/ui/passkey';
 	import { toast } from '$lib/ui/toast.svelte';
 	import { setVault, tresor, type EditMode, type VaultItem } from '$lib/ui/tresor.svelte';
@@ -126,51 +127,73 @@
 		}
 	}
 
-	/* ---------- Entsperren mit Fingerabdruck (Passkey mit PRF) */
+	/*
+	 * ---------- Entsperren mit Fingerabdruck. Zwei Wege:
+	 *  - PRF: der Passkey liefert ein Geheimnis, damit ist der Tresor-Schlüssel verpackt (geht auf
+	 *    allen Geräten mit diesem Passkey)
+	 *  - Gerät: ohne PRF ein Schlüssel nur auf diesem Gerät; das Paket gibt der Server erst nach dem
+	 *    Fingerabdruck heraus ($lib/ui/geraet)
+	 */
 	let canPasskey = $state(false);
-	onMount(() => (canPasskey = passkeysSupported()));
-	const NO_PRF =
-		'Dein Passwort-Manager liefert für den Tresor kein Geheimnis (WebAuthn-PRF). Der Google-Passwortmanager kann das, Samsung Pass und manche andere nicht. Mit dem Master-Passwort geht es weiter wie bisher.';
+	let device = $state<Awaited<ReturnType<typeof deviceKey>>>(null);
+	onMount(async () => {
+		canPasskey = passkeysSupported();
+		device = await deviceKey();
+	});
+	// nach neuem Master-Passwort oder „Ausschalten“ kennt der Server das Gerät nicht mehr
+	const thisDevice = $derived(device && data.devices.some((d) => d.id === device!.id) ? device : null);
+	const canUnlock = $derived(canPasskey && (!!thisDevice || data.passkeys.unlock.length > 0));
+	const STALE = 'Der Fingerabdruck-Schlüssel passt nicht mehr (Master-Passwort geändert?). Bitte mit dem Master-Passwort entsperren und neu einschalten.';
 
 	/** Fehler mit Grund melden – Fehler aus api() stehen schon da */
 	const report = (e: unknown) => e instanceof Error && e.name !== 'Error' && toast(passkeyProblem(e), 'error', 9000);
 
 	async function unlockWithPasskey() {
 		const v = data.vault;
-		const list = data.passkeys.unlock;
-		if (!v || !list.length || busy) return;
+		if (!v || !canUnlock || busy) return;
 		busy = true;
 		wrong = false;
 		try {
-			const r = await prfSecret(data.rpId, list);
-			const w = r && list.find((p) => p.id === r.id);
-			if (!r || !w) return void toast(NO_PRF, 'error', 9000);
-			const key = await unwrapKey(await passkeyKey(r.secret), w).catch(() => null);
-			if (!key || !(await verify(key, v.check))) {
-				return void toast('Der Fingerabdruck-Schlüssel passt nicht mehr (Master-Passwort geändert?). Bitte mit dem Master-Passwort entsperren und neu einschalten.', 'error', 9000);
+			let key: CryptoKey | null = null;
+			if (thisDevice) {
+				key = await openWithDevice(thisDevice);
+			} else {
+				const list = data.passkeys.unlock;
+				const r = await prfSecret(data.rpId, list);
+				const w = r && list.find((p) => p.id === r.id);
+				if (!r || !w) return void toast('Dein Passwort-Manager hat diesmal kein Geheimnis geliefert. Bitte mit dem Master-Passwort entsperren.', 'error', 9000);
+				key = await unwrapKey(await passkeyKey(r.secret), w).catch(() => null);
 			}
+			if (!key || !(await verify(key, v.check))) return void toast(STALE, 'error', 9000);
 			tresor.open(key);
 		} catch (e) {
-			report(e);
+			if (e instanceof DOMException && e.name === 'OperationError') toast(STALE, 'error', 9000);
+			else report(e);
 		} finally {
 			busy = false;
 		}
 	}
 
 	/**
-	 * Tresor-Schlüssel mit dem Passkey dieses Geräts verpacken. Ein Salz für alle Passkeys –
-	 * dann reicht beim Entsperren „eval“, das mehr Passwort-Manager können.
+	 * Tresor-Schlüssel für den Fingerabdruck verpacken: zuerst mit PRF versuchen (ein Salz für alle
+	 * Passkeys – dann reicht „eval“), sonst an dieses Gerät binden. Melden alle Passkeys schon beim
+	 * Einrichten „kein PRF“, gleich ans Gerät – ohne unnötige Abfrage.
 	 */
 	async function enroll(raw: Uint8Array<ArrayBuffer>): Promise<boolean> {
-		const salt = data.passkeys.unlock[0]?.salt ?? newSalt();
-		const r = await prfSecret(data.rpId, data.passkeys.ids.map((id) => ({ id, salt })));
-		if (!r) {
-			toast(NO_PRF, 'error', 9000);
-			return false;
+		if (!data.passkeys.noPrf) {
+			const salt = data.passkeys.unlock[0]?.salt ?? newSalt();
+			const r = await prfSecret(data.rpId, data.passkeys.ids.map((id) => ({ id, salt })));
+			if (r) {
+				const wrapped = await wrapKey(await passkeyKey(r.secret), raw);
+				await api('/api/tresor/passkey', { id: r.id, salt, ...wrapped });
+				toast('Ab jetzt geht der Tresor mit Fingerabdruck auf – auf allen Geräten mit diesem Passkey');
+				await invalidateAll();
+				return true;
+			}
 		}
-		const wrapped = await wrapKey(await passkeyKey(r.secret), raw);
-		await api('/api/tresor/passkey', { id: r.id, salt, ...wrapped });
-		toast('Ab jetzt geht der Tresor mit Fingerabdruck auf');
+		await bindDevice(raw);
+		device = await deviceKey();
+		toast('Ab jetzt geht der Tresor auf diesem Gerät mit Fingerabdruck auf');
 		await invalidateAll();
 		return true;
 	}
@@ -189,7 +212,7 @@
 		} catch {
 			// ohne Speicher eben jedes Mal fragen
 		}
-		if (!canPasskey || !data.passkeys.ids.length || data.passkeys.unlock.length || declined) return void raw.fill(0);
+		if (!canPasskey || !data.passkeys.ids.length || canUnlock || declined) return void raw.fill(0);
 		offerRaw = raw;
 		offer = true;
 		offerTimer = setTimeout(dropOffer, 120_000);
@@ -252,6 +275,8 @@
 		if (!(await ask('Entsperren mit Fingerabdruck ausschalten?', { detail: 'Danach geht der Tresor nur noch mit dem Master-Passwort auf.', confirm: 'Ausschalten' }))) return;
 		try {
 			await api('/api/tresor/passkey', undefined, 'DELETE');
+			await forgetDevice();
+			device = null;
 			bioOpen = false;
 			toast('Ausgeschaltet');
 			await invalidateAll();
@@ -452,7 +477,7 @@
 			<span class="orb"><Lock size={28} /></span>
 			<h1>{label}</h1>
 			<p class="muted">{data.items.length} {data.items.length === 1 ? 'Eintrag' : 'Einträge'}, verschlüsselt mit deinem Master-Passwort.</p>
-			{#if canPasskey && data.passkeys.unlock.length}
+			{#if canUnlock}
 				<button class="btn wide" class:busy type="button" disabled={busy} onclick={unlockWithPasskey}><Fingerprint size={18} /> Mit Fingerabdruck entsperren</button>
 				<div class="or"><span>oder mit dem Master-Passwort</span></div>
 			{/if}
@@ -492,23 +517,24 @@
 		{:else if !data.passkeys.ids.length}
 			<p class="small muted">Richte zuerst unter <a href="/einstellungen/sicherheit">Einstellungen → Sicherheit</a> „Fingerabdruck & Gesicht“ für dieses Gerät ein. Danach kannst du ihn hier für den Tresor einschalten.</p>
 		{:else}
-			{#if data.passkeys.unlock.length}
-				<p class="small muted">Eingeschaltet für: <strong>{data.passkeys.unlock.map((p) => p.name).join(', ')}</strong></p>
+			{@const on = [...data.passkeys.unlock.map((p) => p.name), ...data.devices.map((d) => (d.id === thisDevice?.id ? `${d.name} (dieses Gerät)` : d.name))]}
+			{#if on.length}
+				<p class="small muted">Eingeschaltet für: <strong>{on.join(', ')}</strong></p>
 			{/if}
-			{#if data.passkeys.noPrf}
-				<p class="notice warn small">Dein Passwort-Manager hat beim Einrichten gemeldet, dass er kein Geheimnis für den Tresor liefern kann (WebAuthn-PRF). Mit dem Google-Passwortmanager geht es: am Handy unter Einstellungen → Passwörter & Konten als bevorzugten Dienst wählen, dann den Passkey neu einrichten.</p>
-			{/if}
-			<p class="small muted">Der Tresor-Schlüssel wird mit einem Geheimnis verschlüsselt, das nur dein Passkey liefert – nach Fingerabdruck oder Gesicht. Der Server kann ihn weiterhin nicht lesen. Ändert sich das Master-Passwort, schaltest du es hier neu ein.</p>
+			<p class="small muted">
+				Der Tresor-Schlüssel wird so verpackt, dass er nur nach Fingerabdruck oder Gesicht wieder aufgeht – der Server kann ihn weiterhin nicht lesen. Kann dein Passwort-Manager das nicht selbst
+				(WebAuthn-PRF), bleibt ein Teil davon nur auf diesem Gerät. Ändert sich das Master-Passwort, schaltest du es neu ein.
+			</p>
 			<form class="stack" onsubmit={enableBiometric}>
 				<label class="field">
 					<span>Master-Passwort zur Bestätigung</span>
 					<input type="password" bind:value={bioPw} autocomplete="current-password" required />
 				</label>
 				<div class="form-actions">
-					{#if data.passkeys.unlock.length}
-						<button class="btn quiet" type="button" onclick={disableBiometric}>Ausschalten</button>
+					{#if on.length}
+						<button class="btn quiet" type="button" onclick={disableBiometric}>Überall ausschalten</button>
 					{/if}
-					<button class="btn" class:busy type="submit" disabled={busy}><Fingerprint size={16} /> {data.passkeys.unlock.length ? 'Für dieses Gerät einschalten' : 'Einschalten'}</button>
+					<button class="btn" class:busy type="submit" disabled={busy}><Fingerprint size={16} /> {on.length ? 'Für dieses Gerät einschalten' : 'Einschalten'}</button>
 				</div>
 			</form>
 		{/if}

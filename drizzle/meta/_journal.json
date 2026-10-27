@@ -64,6 +64,13 @@
       "when": 1793102425161,
       "tag": "0008_passkey_prf",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793103010413,
+      "tag": "0009_tresor_geraete",
+      "breakpoints": true
     }
   ]
 }
