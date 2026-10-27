@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const list = await db.select().from(sessions).where(eq(sessions.userId, user.id)).orderBy(desc(sessions.lastSeenAt));
 	const keys = await db.select().from(passkeys).where(eq(passkeys.userId, user.id)).orderBy(desc(passkeys.createdAt));
 	return {
-		passkeys: keys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt, lastUsedAt: p.lastUsedAt, vault: !!p.vaultKey })),
+		passkeys: keys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt, lastUsedAt: p.lastUsedAt, vault: !!p.vaultKey, prf: p.prf })),
 		notfall: url.searchParams.has('notfall'),
 		recoveryLeft: (JSON.parse(user.recoveryCodes || '[]') as string[]).length,
 		sessions: list.map((s) => ({ id: s.id.slice(0, 12), current: s.id === locals.sessionId, userAgent: s.userAgent, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt })),

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Info, Lock, Pencil, Plus, Search, ShieldCheck } from '@lucide/svelte';
+	import { Fingerprint, Info, Lock, Pencil, Plus, Search, ShieldCheck } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 	import { initials } from '$lib/shared/format';
 	import { avatarColor } from '$lib/shared/inbox';
@@ -29,6 +29,7 @@
 			<p class="lead">{accounts.length} {accounts.length === 1 ? 'Konto' : 'Konten'} · Klick auf einen Code kopiert ihn</p>
 		</div>
 		<div class="actions">
+			<button class="btn quiet sm" type="button" onclick={vault.openBiometric}><Fingerprint size={15} /> Fingerabdruck</button>
 			<button class="btn ghost sm" type="button" onclick={() => tresor.lock()}><Lock size={15} /> Sperren</button>
 			<button class="btn" type="button" onclick={() => vault.edit(null, 'konto')}><Plus size={16} /> Konto</button>
 		</div>

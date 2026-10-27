@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { Fingerprint, Lock, LockOpen, ShieldCheck } from '@lucide/svelte';
 	import { onMount } from 'svelte';
+	import { fly } from 'svelte/transition';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { OtpImport } from '$lib/shared/otp';
 	import {
@@ -27,7 +28,7 @@
 	import { glow } from '$lib/ui/actions';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { api } from '$lib/ui/form';
-	import { cancelled, passkeysSupported, prfSecret } from '$lib/ui/passkey';
+	import { passkeyProblem, passkeysSupported, prfSecret } from '$lib/ui/passkey';
 	import { toast } from '$lib/ui/toast.svelte';
 	import { setVault, tresor, type EditMode, type VaultItem } from '$lib/ui/tresor.svelte';
 	import EntryForm from './EntryForm.svelte';
@@ -109,11 +110,14 @@
 		busy = true;
 		wrong = false;
 		try {
-			const key = await deriveKey(master, v.salt, v.iterations);
+			const raw = await deriveRaw(master, v.salt, v.iterations);
+			const key = await keyFromRaw(raw);
 			if (await verify(key, v.check)) {
 				master = '';
 				tresor.open(key);
+				maybeOffer(raw);
 			} else {
+				raw.fill(0);
 				wrong = true;
 				masterInput?.select();
 			}
@@ -125,7 +129,11 @@
 	/* ---------- Entsperren mit Fingerabdruck (Passkey mit PRF) */
 	let canPasskey = $state(false);
 	onMount(() => (canPasskey = passkeysSupported()));
-	const pkFail = 'Mit Fingerabdruck hat es nicht geklappt – bitte mit dem Master-Passwort entsperren.';
+	const NO_PRF =
+		'Dein Passwort-Manager liefert für den Tresor kein Geheimnis (WebAuthn-PRF). Der Google-Passwortmanager kann das, Samsung Pass und manche andere nicht. Mit dem Master-Passwort geht es weiter wie bisher.';
+
+	/** Fehler mit Grund melden – Fehler aus api() stehen schon da */
+	const report = (e: unknown) => e instanceof Error && e.name !== 'Error' && toast(passkeyProblem(e), 'error', 9000);
 
 	async function unlockWithPasskey() {
 		const v = data.vault;
@@ -136,15 +144,84 @@
 		try {
 			const r = await prfSecret(data.rpId, list);
 			const w = r && list.find((p) => p.id === r.id);
-			if (!r || !w) return void toast(pkFail, 'error');
-			const key = await unwrapKey(await passkeyKey(r.secret), w);
-			if (!(await verify(key, v.check))) return void toast(pkFail, 'error');
+			if (!r || !w) return void toast(NO_PRF, 'error', 9000);
+			const key = await unwrapKey(await passkeyKey(r.secret), w).catch(() => null);
+			if (!key || !(await verify(key, v.check))) {
+				return void toast('Der Fingerabdruck-Schlüssel passt nicht mehr (Master-Passwort geändert?). Bitte mit dem Master-Passwort entsperren und neu einschalten.', 'error', 9000);
+			}
 			tresor.open(key);
 		} catch (e) {
-			if (!cancelled(e)) toast(pkFail, 'error');
+			report(e);
 		} finally {
 			busy = false;
 		}
+	}
+
+	/**
+	 * Tresor-Schlüssel mit dem Passkey dieses Geräts verpacken. Ein Salz für alle Passkeys –
+	 * dann reicht beim Entsperren „eval“, das mehr Passwort-Manager können.
+	 */
+	async function enroll(raw: Uint8Array<ArrayBuffer>): Promise<boolean> {
+		const salt = data.passkeys.unlock[0]?.salt ?? newSalt();
+		const r = await prfSecret(data.rpId, data.passkeys.ids.map((id) => ({ id, salt })));
+		if (!r) {
+			toast(NO_PRF, 'error', 9000);
+			return false;
+		}
+		const wrapped = await wrapKey(await passkeyKey(r.secret), raw);
+		await api('/api/tresor/passkey', { id: r.id, salt, ...wrapped });
+		toast('Ab jetzt geht der Tresor mit Fingerabdruck auf');
+		await invalidateAll();
+		return true;
+	}
+
+	/* Nach dem Entsperren mit dem Master-Passwort einmal anbieten – ohne es noch einmal einzutippen.
+	   Der Rohschlüssel bleibt dafür höchstens zwei Minuten im Speicher. */
+	const NO_OFFER = 'tresor-fingerabdruck-nein';
+	let offer = $state(false);
+	let offerRaw: Uint8Array<ArrayBuffer> | null = null;
+	let offerTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function maybeOffer(raw: Uint8Array<ArrayBuffer>) {
+		let declined = false;
+		try {
+			declined = localStorage.getItem(NO_OFFER) === '1';
+		} catch {
+			// ohne Speicher eben jedes Mal fragen
+		}
+		if (!canPasskey || !data.passkeys.ids.length || data.passkeys.unlock.length || declined) return void raw.fill(0);
+		offerRaw = raw;
+		offer = true;
+		offerTimer = setTimeout(dropOffer, 120_000);
+	}
+
+	function dropOffer() {
+		offer = false;
+		offerRaw?.fill(0);
+		offerRaw = null;
+		clearTimeout(offerTimer);
+	}
+
+	async function acceptOffer() {
+		if (!offerRaw || busy) return;
+		busy = true;
+		try {
+			await enroll(offerRaw);
+		} catch (e) {
+			report(e);
+		} finally {
+			busy = false;
+			dropOffer();
+		}
+	}
+
+	function declineOffer() {
+		try {
+			localStorage.setItem(NO_OFFER, '1');
+		} catch {
+			// nur eine Annehmlichkeit
+		}
+		dropOffer();
 	}
 
 	let bioOpen = $state(false);
@@ -156,23 +233,17 @@
 		const v = data.vault;
 		if (!v || busy) return;
 		busy = true;
+		const raw = await deriveRaw(bioPw, v.salt, v.iterations);
 		try {
-			const raw = await deriveRaw(bioPw, v.salt, v.iterations);
 			if (!(await verify(await keyFromRaw(raw), v.check))) return void toast('Das Master-Passwort stimmt nicht.', 'error');
-			const salts = data.passkeys.ids.map((id) => ({ id, salt: newSalt() }));
-			const r = await prfSecret(data.rpId, salts);
-			const salt = r && salts.find((s) => s.id === r.id)?.salt;
-			if (!r || !salt) return void toast('Dieses Gerät kann den Tresor nicht mit Fingerabdruck entsperren. Mit dem Master-Passwort geht es weiter wie bisher.', 'error');
-			const wrapped = await wrapKey(await passkeyKey(r.secret), raw);
-			raw.fill(0);
-			await api('/api/tresor/passkey', { id: r.id, salt, ...wrapped });
-			bioOpen = false;
-			bioPw = '';
-			toast('Der Tresor lässt sich jetzt mit Fingerabdruck entsperren');
-			await invalidateAll();
+			if (await enroll(raw)) {
+				bioOpen = false;
+				bioPw = '';
+			}
 		} catch (err) {
-			if (!cancelled(err) && err instanceof Error && err.name !== 'Error') toast('Das Gerät hat abgelehnt. Bitte noch einmal versuchen.', 'error');
+			report(err);
 		} finally {
+			raw.fill(0);
 			busy = false;
 		}
 	}
@@ -327,6 +398,7 @@
 		formOpen = false;
 		masterOpen = false;
 		bioOpen = false;
+		dropOffer();
 	});
 
 	setVault({
@@ -397,6 +469,16 @@
 	</div>
 {:else}
 	{@render children()}
+	{#if offer}
+		<div class="offer card" role="dialog" aria-label="Fingerabdruck einschalten" transition:fly={{ y: 24, duration: 300 }}>
+			<span class="orb small"><Fingerprint size={20} /></span>
+			<p><strong>Nächstes Mal mit Fingerabdruck?</strong><br /><span class="small muted">Dann musst du das Master-Passwort hier nicht mehr eintippen.</span></p>
+			<div class="row">
+				<button class="btn quiet sm" type="button" onclick={declineOffer}>Nein danke</button>
+				<button class="btn sm" class:busy type="button" disabled={busy} onclick={acceptOffer}>Einschalten</button>
+			</div>
+		</div>
+	{/if}
 {/if}
 
 <Modal bind:open={formOpen} title={editing ? (mode === 'konto' ? 'Konto bearbeiten' : 'Eintrag bearbeiten') : mode === 'konto' ? 'Konto hinzufügen' : 'Neuer Eintrag'} wide>
@@ -412,6 +494,9 @@
 		{:else}
 			{#if data.passkeys.unlock.length}
 				<p class="small muted">Eingeschaltet für: <strong>{data.passkeys.unlock.map((p) => p.name).join(', ')}</strong></p>
+			{/if}
+			{#if data.passkeys.noPrf}
+				<p class="notice warn small">Dein Passwort-Manager hat beim Einrichten gemeldet, dass er kein Geheimnis für den Tresor liefern kann (WebAuthn-PRF). Mit dem Google-Passwortmanager geht es: am Handy unter Einstellungen → Passwörter & Konten als bevorzugten Dienst wählen, dann den Passkey neu einrichten.</p>
 			{/if}
 			<p class="small muted">Der Tresor-Schlüssel wird mit einem Geheimnis verschlüsselt, das nur dein Passkey liefert – nach Fingerabdruck oder Gesicht. Der Server kann ihn weiterhin nicht lesen. Ändert sich das Master-Passwort, schaltest du es hier neu ein.</p>
 			<form class="stack" onsubmit={enableBiometric}>
@@ -523,6 +608,45 @@
 
 	.wide {
 		width: 100%;
+	}
+
+	/* über der Tab-Leiste am Handy */
+	.offer {
+		position: fixed;
+		left: 50%;
+		bottom: calc(env(safe-area-inset-bottom) + 5.5rem);
+		z-index: 60;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem 1rem;
+		width: min(30rem, calc(100vw - 2rem));
+		padding: 0.9rem 1rem;
+		translate: -50% 0;
+		box-shadow: 0 20px 50px -15px rgb(0 0 0 / 0.7);
+	}
+
+	.offer p {
+		flex: 1;
+		min-width: 12rem;
+		margin: 0;
+		line-height: 1.4;
+	}
+
+	.offer .row {
+		margin-left: auto;
+	}
+
+	.orb.small {
+		flex: none;
+		width: 2.6rem;
+		height: 2.6rem;
+	}
+
+	@media (min-width: 900px) {
+		.offer {
+			bottom: 1.5rem;
+		}
 	}
 
 	.or {

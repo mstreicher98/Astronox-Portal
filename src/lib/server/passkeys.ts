@@ -70,7 +70,9 @@ export async function verifyNew(rp: RelyingParty, userId: number, response: Regi
 	});
 	if (!v.verified) return null;
 	const c = v.registrationInfo.credential;
-	return { id: c.id, publicKey: isoBase64URL.fromBuffer(c.publicKey), counter: c.counter, transports: c.transports ?? [] };
+	// kann der Passwort-Manager PRF (Tresor entsperren)? Manche melden nichts – dann unbekannt
+	const prf = (response.clientExtensionResults as { prf?: { enabled?: boolean } } | undefined)?.prf?.enabled;
+	return { id: c.id, publicKey: isoBase64URL.fromBuffer(c.publicKey), counter: c.counter, transports: c.transports ?? [], prf: typeof prf === 'boolean' ? prf : null };
 }
 
 /* ------------------------------------------------------------------ Anmelden */

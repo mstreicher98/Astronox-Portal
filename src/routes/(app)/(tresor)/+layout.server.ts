@@ -22,6 +22,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		rpId: url.hostname,
 		passkeys: {
 			ids: keys.map((k) => k.id),
+			// alle Passkeys haben beim Einrichten gemeldet: kein PRF
+			noPrf: keys.length > 0 && keys.every((k) => k.prf === false),
 			unlock: keys.flatMap((k) => (k.prfSalt && k.vaultIv && k.vaultKey ? [{ id: k.id, name: k.name, salt: k.prfSalt, iv: k.vaultIv, data: k.vaultKey }] : []))
 		}
 	};

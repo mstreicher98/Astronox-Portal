@@ -5,7 +5,7 @@
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import AuthFrame from '$lib/components/AuthFrame.svelte';
-	import { cancelled, loginWithPasskey, passkeysSupported } from '$lib/ui/passkey';
+	import { cancelled, loginWithPasskey, passkeyProblem, passkeysSupported } from '$lib/ui/passkey';
 	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data, form: result } = $props();
@@ -24,7 +24,7 @@
 			// ganz neu laden – das Portal startet mit der frischen Sitzung
 			location.href = await loginWithPasskey(page.url.searchParams.get('ziel'));
 		} catch (e) {
-			if (!cancelled(e) && e instanceof Error && e.name !== 'Error') toast('Mit Fingerabdruck hat es nicht geklappt – bitte mit Passwort anmelden.', 'error');
+			if (!cancelled(e) && e instanceof Error && e.name !== 'Error') toast(passkeyProblem(e), 'error', 9000);
 			pkBusy = false;
 		}
 	}

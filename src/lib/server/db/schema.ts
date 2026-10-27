@@ -61,6 +61,8 @@ export const passkeys = sqliteTable(
 		 * verschlüsselte Tresor-Schlüssel – ohne den Passkey nicht lesbar
 		 */
 		prfSalt: text('prf_salt'),
+		/** Meldet der Passwort-Manager beim Einrichten PRF? null = unbekannt (vor dieser Abfrage eingerichtet) */
+		prf: bool('prf'),
 		vaultIv: text('vault_iv'),
 		vaultKey: text('vault_key'),
 		createdAt: created(),

@@ -7,7 +7,7 @@
 	import { relative } from '$lib/shared/format';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
-	import { cancelled, passkeysSupported, registerPasskey } from '$lib/ui/passkey';
+	import { passkeyProblem, passkeysSupported, registerPasskey } from '$lib/ui/passkey';
 	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data } = $props();
@@ -24,12 +24,13 @@
 		e.preventDefault();
 		pkBusy = true;
 		try {
-			const name = await registerPasskey(pkCode);
+			const { name, prf } = await registerPasskey(pkCode);
 			pkCode = '';
-			toast(`Eingerichtet: ${name}`);
+			if (prf === false) toast(`Eingerichtet: ${name} – zum Anmelden. Den Tresor kann dieser Passwort-Manager nicht entsperren (kein WebAuthn-PRF).`, 'ok', 9000);
+			else toast(`Eingerichtet: ${name}. Den Tresor schaltest du beim nächsten Entsperren dazu.`, 'ok', 6000);
 			await invalidateAll();
 		} catch (err) {
-			if (!cancelled(err) && err instanceof Error && err.name !== 'Error') toast('Das Gerät hat das Einrichten abgelehnt. Ist schon ein Passkey für das Portal darauf?', 'error');
+			if (err instanceof Error && err.name !== 'Error') toast(passkeyProblem(err), 'error', 9000);
 		} finally {
 			pkBusy = false;
 		}
@@ -104,7 +105,7 @@
 				<li class="spread small pk">
 					<span>
 						<strong>{p.name}</strong> · eingerichtet {relative(p.createdAt)}{#if p.lastUsedAt} · zuletzt {relative(p.lastUsedAt)}{/if}
-						{#if p.vault}<span class="badge info">Tresor</span>{/if}
+						{#if p.vault}<span class="badge info">entsperrt den Tresor</span>{:else if p.prf === false}<span class="badge warn" title="Der Passwort-Manager liefert kein Geheimnis für den Tresor (WebAuthn-PRF)">kann den Tresor nicht</span>{/if}
 					</span>
 					<form method="POST" action="?/passkey_loeschen" use:enhance={submit({ confirm: `Passkey „${p.name}“ löschen?`, confirmDetail: 'Auf diesem Gerät geht die Anmeldung dann wieder nur mit Passwort und Code.' })}>
 						<input type="hidden" name="id" value={p.id} />

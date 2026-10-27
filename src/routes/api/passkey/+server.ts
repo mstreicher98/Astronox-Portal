@@ -35,9 +35,9 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		const cred = await verifyNew(rp, user.id, body.response as never).catch(() => null);
 		if (!cred) error(400, 'Das Einrichten hat nicht geklappt. Bitte noch einmal versuchen.');
 		const name = deviceName(request.headers.get('user-agent'));
-		await db.insert(passkeys).values({ id: cred.id, userId: user.id, publicKey: cred.publicKey, counter: cred.counter, transports: JSON.stringify(cred.transports), name });
+		await db.insert(passkeys).values({ id: cred.id, userId: user.id, publicKey: cred.publicKey, counter: cred.counter, transports: JSON.stringify(cred.transports), name, prf: cred.prf });
 		await notify({ kind: 'sicherheit', title: 'Neuer Passkey eingerichtet', body: `${name} – Anmeldung mit Fingerabdruck oder Gesicht. Warst du das nicht? Unter Einstellungen → Sicherheit löschen.`, url: '/einstellungen/sicherheit' });
-		return json({ ok: true, name });
+		return json({ ok: true, name, prf: cred.prf });
 	}
 
 	error(400, 'Unbekannter Schritt.');
