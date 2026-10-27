@@ -1,13 +1,33 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Lock, LockOpen, ShieldCheck } from '@lucide/svelte';
+	import { Fingerprint, Lock, LockOpen, ShieldCheck } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { OtpImport } from '$lib/shared/otp';
-	import { deriveKey, emptyEntry, ITERATIONS, makeCheck, MIN_MASTER, newSalt, normalize, seal, tidy, unseal, verify, type VaultEntry } from '$lib/shared/tresor';
+	import {
+		deriveKey,
+		deriveRaw,
+		emptyEntry,
+		ITERATIONS,
+		keyFromRaw,
+		makeCheck,
+		MIN_MASTER,
+		newSalt,
+		normalize,
+		passkeyKey,
+		seal,
+		tidy,
+		unseal,
+		unwrapKey,
+		verify,
+		wrapKey,
+		type VaultEntry
+	} from '$lib/shared/tresor';
 	import { glow } from '$lib/ui/actions';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { api } from '$lib/ui/form';
+	import { cancelled, passkeysSupported, prfSecret } from '$lib/ui/passkey';
 	import { toast } from '$lib/ui/toast.svelte';
 	import { setVault, tresor, type EditMode, type VaultItem } from '$lib/ui/tresor.svelte';
 	import EntryForm from './EntryForm.svelte';
@@ -99,6 +119,73 @@
 			}
 		} finally {
 			busy = false;
+		}
+	}
+
+	/* ---------- Entsperren mit Fingerabdruck (Passkey mit PRF) */
+	let canPasskey = $state(false);
+	onMount(() => (canPasskey = passkeysSupported()));
+	const pkFail = 'Mit Fingerabdruck hat es nicht geklappt – bitte mit dem Master-Passwort entsperren.';
+
+	async function unlockWithPasskey() {
+		const v = data.vault;
+		const list = data.passkeys.unlock;
+		if (!v || !list.length || busy) return;
+		busy = true;
+		wrong = false;
+		try {
+			const r = await prfSecret(data.rpId, list);
+			const w = r && list.find((p) => p.id === r.id);
+			if (!r || !w) return void toast(pkFail, 'error');
+			const key = await unwrapKey(await passkeyKey(r.secret), w);
+			if (!(await verify(key, v.check))) return void toast(pkFail, 'error');
+			tresor.open(key);
+		} catch (e) {
+			if (!cancelled(e)) toast(pkFail, 'error');
+		} finally {
+			busy = false;
+		}
+	}
+
+	let bioOpen = $state(false);
+	let bioPw = $state('');
+
+	/** Master-Passwort bestätigen, dann den Tresor-Schlüssel mit dem Passkey verpacken */
+	async function enableBiometric(e: SubmitEvent) {
+		e.preventDefault();
+		const v = data.vault;
+		if (!v || busy) return;
+		busy = true;
+		try {
+			const raw = await deriveRaw(bioPw, v.salt, v.iterations);
+			if (!(await verify(await keyFromRaw(raw), v.check))) return void toast('Das Master-Passwort stimmt nicht.', 'error');
+			const salts = data.passkeys.ids.map((id) => ({ id, salt: newSalt() }));
+			const r = await prfSecret(data.rpId, salts);
+			const salt = r && salts.find((s) => s.id === r.id)?.salt;
+			if (!r || !salt) return void toast('Dieses Gerät kann den Tresor nicht mit Fingerabdruck entsperren. Mit dem Master-Passwort geht es weiter wie bisher.', 'error');
+			const wrapped = await wrapKey(await passkeyKey(r.secret), raw);
+			raw.fill(0);
+			await api('/api/tresor/passkey', { id: r.id, salt, ...wrapped });
+			bioOpen = false;
+			bioPw = '';
+			toast('Der Tresor lässt sich jetzt mit Fingerabdruck entsperren');
+			await invalidateAll();
+		} catch (err) {
+			if (!cancelled(err) && err instanceof Error && err.name !== 'Error') toast('Das Gerät hat abgelehnt. Bitte noch einmal versuchen.', 'error');
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function disableBiometric() {
+		if (!(await ask('Entsperren mit Fingerabdruck ausschalten?', { detail: 'Danach geht der Tresor nur noch mit dem Master-Passwort auf.', confirm: 'Ausschalten' }))) return;
+		try {
+			await api('/api/tresor/passkey', undefined, 'DELETE');
+			bioOpen = false;
+			toast('Ausgeschaltet');
+			await invalidateAll();
+		} catch {
+			// api() zeigt den Fehler schon an
 		}
 	}
 
@@ -239,6 +326,7 @@
 		if (tresor.unlocked) return;
 		formOpen = false;
 		masterOpen = false;
+		bioOpen = false;
 	});
 
 	setVault({
@@ -255,6 +343,7 @@
 		remove,
 		importAccounts,
 		openMaster: () => (masterOpen = true),
+		openBiometric: () => (bioOpen = true),
 		copy
 	});
 </script>
@@ -291,6 +380,10 @@
 			<span class="orb"><Lock size={28} /></span>
 			<h1>{label}</h1>
 			<p class="muted">{data.items.length} {data.items.length === 1 ? 'Eintrag' : 'Einträge'}, verschlüsselt mit deinem Master-Passwort.</p>
+			{#if canPasskey && data.passkeys.unlock.length}
+				<button class="btn wide" class:busy type="button" disabled={busy} onclick={unlockWithPasskey}><Fingerprint size={18} /> Mit Fingerabdruck entsperren</button>
+				<div class="or"><span>oder mit dem Master-Passwort</span></div>
+			{/if}
 			<form class="stack" onsubmit={unlock}>
 				<label class="field">
 					<span>Master-Passwort</span>
@@ -308,6 +401,33 @@
 
 <Modal bind:open={formOpen} title={editing ? (mode === 'konto' ? 'Konto bearbeiten' : 'Eintrag bearbeiten') : mode === 'konto' ? 'Konto hinzufügen' : 'Neuer Eintrag'} wide>
 	<EntryForm entry={draft} {mode} {categories} onsave={save} onimport={importAccounts} oncancel={() => (formOpen = false)} ondelete={editing ? () => remove(editing!) : undefined} />
+</Modal>
+
+<Modal bind:open={bioOpen} title="Mit Fingerabdruck entsperren">
+	<div class="stack">
+		{#if !canPasskey}
+			<p class="small muted">Dieser Browser kann keine Passkeys – hier geht der Tresor nur mit dem Master-Passwort auf.</p>
+		{:else if !data.passkeys.ids.length}
+			<p class="small muted">Richte zuerst unter <a href="/einstellungen/sicherheit">Einstellungen → Sicherheit</a> „Fingerabdruck & Gesicht“ für dieses Gerät ein. Danach kannst du ihn hier für den Tresor einschalten.</p>
+		{:else}
+			{#if data.passkeys.unlock.length}
+				<p class="small muted">Eingeschaltet für: <strong>{data.passkeys.unlock.map((p) => p.name).join(', ')}</strong></p>
+			{/if}
+			<p class="small muted">Der Tresor-Schlüssel wird mit einem Geheimnis verschlüsselt, das nur dein Passkey liefert – nach Fingerabdruck oder Gesicht. Der Server kann ihn weiterhin nicht lesen. Ändert sich das Master-Passwort, schaltest du es hier neu ein.</p>
+			<form class="stack" onsubmit={enableBiometric}>
+				<label class="field">
+					<span>Master-Passwort zur Bestätigung</span>
+					<input type="password" bind:value={bioPw} autocomplete="current-password" required />
+				</label>
+				<div class="form-actions">
+					{#if data.passkeys.unlock.length}
+						<button class="btn quiet" type="button" onclick={disableBiometric}>Ausschalten</button>
+					{/if}
+					<button class="btn" class:busy type="submit" disabled={busy}><Fingerprint size={16} /> {data.passkeys.unlock.length ? 'Für dieses Gerät einschalten' : 'Einschalten'}</button>
+				</div>
+			</form>
+		{/if}
+	</div>
 </Modal>
 
 <Modal bind:open={masterOpen} title="Master-Passwort ändern">
@@ -399,6 +519,27 @@
 	.wrong {
 		margin: 0;
 		color: var(--danger);
+	}
+
+	.wide {
+		width: 100%;
+	}
+
+	.or {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 100%;
+		color: var(--dust-2);
+		font-size: 0.8rem;
+	}
+
+	.or::before,
+	.or::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--line-soft);
 	}
 
 	.forgot {

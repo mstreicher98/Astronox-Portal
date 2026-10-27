@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveKey, emptyEntry, generatePassword, linkHref, makeCheck, newSalt, normalize, seal, strength, tidy, unseal, verify } from './tresor';
+import { deriveKey, deriveRaw, emptyEntry, generatePassword, linkHref, makeCheck, newSalt, normalize, passkeyKey, seal, strength, tidy, unseal, unwrapKey, verify, wrapKey } from './tresor';
 
 // wenige Runden – sonst dauern die Tests unnötig lang
 const ROUNDS = 1000;
@@ -34,6 +34,25 @@ describe('Verschlüsselung', () => {
 		const [a, b] = await Promise.all([seal(key, 'x'), seal(key, 'x')]);
 		expect(a.iv).not.toBe(b.iv);
 		expect(a.data).not.toBe(b.data);
+	});
+});
+
+describe('Entsperren mit Passkey', () => {
+	it('verpackt denselben Schlüssel, den das Master-Passwort ergibt', async () => {
+		const salt = newSalt();
+		const fromPassword = await deriveKey('richtig-richtig', salt, ROUNDS);
+		const check = await makeCheck(fromPassword);
+		const prf = crypto.getRandomValues(new Uint8Array(32));
+		const wrapped = await wrapKey(await passkeyKey(prf), await deriveRaw('richtig-richtig', salt, ROUNDS));
+		const viaPasskey = await unwrapKey(await passkeyKey(prf), wrapped);
+		expect(await verify(viaPasskey, check)).toBe(true);
+		// Einträge, die mit dem Master-Passwort verschlüsselt sind, bleiben lesbar
+		expect(await unseal(viaPasskey, await seal(fromPassword, { a: 1 }))).toEqual({ a: 1 });
+	});
+
+	it('lehnt einen anderen Passkey ab', async () => {
+		const wrapped = await wrapKey(await passkeyKey(new Uint8Array(32).fill(1)), new Uint8Array(32));
+		await expect(unwrapKey(await passkeyKey(new Uint8Array(32).fill(2)), wrapped)).rejects.toThrow();
 	});
 });
 

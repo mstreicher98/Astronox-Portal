@@ -1,0 +1,10 @@
+# Gradle und Android Studio
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+# Signaturschlüssel nie ins Repo
+*.keystore
+*.jks

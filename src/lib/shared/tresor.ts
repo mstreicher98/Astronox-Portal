@@ -111,6 +111,39 @@ export async function unseal<T = unknown>(key: CryptoKey, s: Sealed): Promise<T>
 	return JSON.parse(new TextDecoder().decode(plain)) as T;
 }
 
+/* ------------------------------------------------------------------ Entsperren mit Passkey */
+
+/**
+ * Wie deriveKey, aber als Rohbytes – nur, um den Schlüssel einmalig für einen Passkey zu
+ * verpacken. Gleiche Bytes wie deriveKey (die ersten 256 Bit aus PBKDF2).
+ */
+export async function deriveRaw(password: string, salt: string, iterations = ITERATIONS): Promise<Uint8Array<ArrayBuffer>> {
+	const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password.normalize('NFC')), 'PBKDF2', false, ['deriveBits']);
+	return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(salt), iterations }, base, 256));
+}
+
+export const keyFromRaw = (raw: Uint8Array<ArrayBuffer>) => crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+
+/** Schlüssel aus dem PRF-Ergebnis eines Passkeys (WebAuthn-Erweiterung „prf“) */
+export async function passkeyKey(prf: BufferSource): Promise<CryptoKey> {
+	const base = await crypto.subtle.importKey('raw', prf, 'HKDF', false, ['deriveKey']);
+	return crypto.subtle.deriveKey(
+		{ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('astronox-tresor-passkey') },
+		base,
+		{ name: 'AES-GCM', length: 256 },
+		false,
+		['encrypt', 'decrypt']
+	);
+}
+
+/** Tresor-Schlüssel mit dem Passkey verpacken … */
+export const wrapKey = (passkey: CryptoKey, raw: Uint8Array) => seal(passkey, b64(raw));
+
+/** … und wieder auspacken; wirft, wenn es der falsche Passkey ist */
+export async function unwrapKey(passkey: CryptoKey, s: Sealed): Promise<CryptoKey> {
+	return keyFromRaw(unb64(await unseal<string>(passkey, s)));
+}
+
 /** Prüfwert für das Master-Passwort */
 export const makeCheck = (key: CryptoKey) => seal(key, CHECK);
 

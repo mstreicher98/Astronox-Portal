@@ -26,7 +26,7 @@ export const init: ServerInit = async () => {
 };
 
 /** Ohne Anmeldung erreichbar */
-const PUBLIC = /^\/(anmelden|einrichten|healthz|manifest\.webmanifest|service-worker\.js|favicon|icon-|apple-touch-icon|_app\/)/;
+const PUBLIC = /^\/(anmelden|api\/passkey\/anmelden$|\.well-known\/assetlinks\.json$|einrichten|healthz|manifest\.webmanifest|service-worker\.js|favicon|icon-|apple-touch-icon|_app\/)/;
 
 export const handle: Handle = async ({ event, resolve }) => {
 	await ensureDatabase();

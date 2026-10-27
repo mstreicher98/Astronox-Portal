@@ -1,14 +1,39 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { KeyRound, LifeBuoy, LogOut, Monitor, ShieldCheck, Smartphone, TriangleAlert, User } from '@lucide/svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { Fingerprint, KeyRound, LifeBuoy, LogOut, Monitor, ShieldCheck, Smartphone, Trash2, TriangleAlert, User } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { relative } from '$lib/shared/format';
 	import { glow } from '$lib/ui/actions';
 	import { submit } from '$lib/ui/form';
+	import { cancelled, passkeysSupported, registerPasskey } from '$lib/ui/passkey';
+	import { toast } from '$lib/ui/toast.svelte';
 
 	let { data } = $props();
 	let pairing = $state<{ qr: string; secret: string } | null>(null);
 	let codes = $state<string[] | null>(null);
+
+	/* ---------- Fingerabdruck oder Gesicht */
+	let canPasskey = $state(true);
+	let pkCode = $state('');
+	let pkBusy = $state(false);
+	onMount(() => (canPasskey = passkeysSupported()));
+
+	async function addPasskey(e: SubmitEvent) {
+		e.preventDefault();
+		pkBusy = true;
+		try {
+			const name = await registerPasskey(pkCode);
+			pkCode = '';
+			toast(`Eingerichtet: ${name}`);
+			await invalidateAll();
+		} catch (err) {
+			if (!cancelled(err) && err instanceof Error && err.name !== 'Error') toast('Das Gerät hat das Einrichten abgelehnt. Ist schon ein Passkey für das Portal darauf?', 'error');
+		} finally {
+			pkBusy = false;
+		}
+	}
 
 	const device = (ua: string | null) => (!ua ? 'Unbekannt' : /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'Mac' : 'Gerät');
 </script>
@@ -67,6 +92,36 @@
 				</form>
 			</div>
 		</div>
+	{/if}
+</div>
+
+<div class="card stack" use:glow>
+	<h2><Fingerprint size={17} /> Fingerabdruck & Gesicht</h2>
+	<p class="small muted">Anmelden ohne Passwort und Code – das Handy fragt nach Fingerabdruck, Gesicht oder Displaysperre (Passkey). Damit lässt sich auch der Tresor entsperren.</p>
+	{#if data.passkeys.length}
+		<ul class="list">
+			{#each data.passkeys as p (p.id)}
+				<li class="spread small pk">
+					<span>
+						<strong>{p.name}</strong> · eingerichtet {relative(p.createdAt)}{#if p.lastUsedAt} · zuletzt {relative(p.lastUsedAt)}{/if}
+						{#if p.vault}<span class="badge info">Tresor</span>{/if}
+					</span>
+					<form method="POST" action="?/passkey_loeschen" use:enhance={submit({ confirm: `Passkey „${p.name}“ löschen?`, confirmDetail: 'Auf diesem Gerät geht die Anmeldung dann wieder nur mit Passwort und Code.' })}>
+						<input type="hidden" name="id" value={p.id} />
+						<button class="btn quiet icon sm" type="submit" aria-label="Löschen" title="Löschen"><Trash2 size={15} /></button>
+					</form>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#if canPasskey}
+		<form class="row wrap" onsubmit={addPasskey}>
+			<input class="input code" bind:value={pkCode} inputmode="numeric" maxlength="7" placeholder="Code aus der App" required aria-label="Code aus der Authenticator-App" />
+			<button class="btn ghost sm" class:busy={pkBusy} type="submit" disabled={pkBusy}><Fingerprint size={15} /> Dieses Gerät einrichten</button>
+		</form>
+		<p class="small faint">Auf jedem Handy oder Laptop einmal einrichten. Zur Sicherheit mit dem Code aus der Authenticator-App.</p>
+	{:else}
+		<p class="small faint">Dieser Browser kann keine Passkeys.</p>
 	{/if}
 </div>
 
@@ -156,6 +211,14 @@
 		margin: 0;
 		padding: 0;
 		list-style: none;
+	}
+
+	.pk {
+		padding: 0.35rem 0;
+	}
+
+	.pk .badge {
+		margin-left: 0.35rem;
 	}
 
 	.codes li {

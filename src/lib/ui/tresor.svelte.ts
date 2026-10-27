@@ -24,6 +24,7 @@ export interface VaultContext {
 	remove(item: VaultItem): Promise<void>;
 	importAccounts(list: OtpImport[]): Promise<void>;
 	openMaster(): void;
+	openBiometric(): void;
 	copy(text: string, what: string, secret: boolean): Promise<void>;
 }
 

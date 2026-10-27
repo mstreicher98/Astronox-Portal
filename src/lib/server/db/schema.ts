@@ -43,6 +43,32 @@ export const sessions = sqliteTable('portal_sessions', {
 	lastSeenAt: text('last_seen_at').notNull().default(now)
 });
 
+/** Anmelden mit Fingerabdruck oder Gesicht (WebAuthn). Gespeichert ist nur der öffentliche Schlüssel. */
+export const passkeys = sqliteTable(
+	'passkeys',
+	{
+		/** Credential-ID (base64url) */
+		id: text('id').primaryKey(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		publicKey: text('public_key').notNull(),
+		counter: integer('counter').notNull().default(0),
+		transports: text('transports').notNull().default('[]'),
+		name: text('name').notNull(),
+		/**
+		 * Tresor mit diesem Passkey entsperren: Salz für die PRF-Erweiterung und der damit
+		 * verschlüsselte Tresor-Schlüssel – ohne den Passkey nicht lesbar
+		 */
+		prfSalt: text('prf_salt'),
+		vaultIv: text('vault_iv'),
+		vaultKey: text('vault_key'),
+		createdAt: created(),
+		lastUsedAt: text('last_used_at')
+	},
+	(t) => [index('passkeys_user_idx').on(t.userId)]
+);
+
 /* ------------------------------------------------------------------ Kunden */
 
 export const customers = sqliteTable(
@@ -672,3 +698,4 @@ export type MediaRow = typeof media.$inferSelect;
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 export type LedgerRecurring = typeof ledgerRecurring.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
+export type Passkey = typeof passkeys.$inferSelect;

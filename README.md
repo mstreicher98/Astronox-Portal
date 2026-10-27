@@ -45,6 +45,8 @@ Die Webseite muss lokal einmal gelaufen sein (sie legt ihre Tabellen an). Beim e
 ## Sicherheit
 
 - Ein Konto, Anmeldung mit Passwort (mind. 12 Zeichen, scrypt) **und** Code aus einer Authenticator-App (Pflicht). Zehn Notfallcodes beim Einrichten
+- Oder mit Fingerabdruck / Gesicht (Passkeys, WebAuthn mit SimpleWebAuthn): Einstellungen → Sicherheit → „Dieses Gerät einrichten“, zur Sicherheit nur mit dem aktuellen 2FA-Code. Gespeichert ist nur der öffentliche Schlüssel; jedes neue Gerät meldet die Glocke
+- Tresor mit Fingerabdruck entsperren: über die WebAuthn-Erweiterung PRF liefert der Passkey ein Geheimnis, mit dem der Tresor-Schlüssel verpackt auf dem Server liegt – ohne Passkey nicht lesbar. Neues Master-Passwort = neu einschalten
 - Sitzungen 30 Tage, im Cookie nur ein Zufallswert; Bremse gegen Durchprobieren (IP und Konto)
 - Zugangsdaten, SMTP/IMAP-Passwörter, der Schlüssel der Microsoft-365-App und der 2FA-Schlüssel liegen AES-256-GCM-verschlüsselt in der Datenbank. Schlüssel: `/data/.schluessel` (oder `APP_SECRET`)
 - Passwort-Tresor ohne Mitlesen: der Browser leitet aus dem Master-Passwort einen Schlüssel ab (PBKDF2-SHA-256, 600.000 Runden) und verschlüsselt jeden Eintrag mit AES-256-GCM – auch die Schlüssel des Authenticators. Server und Sicherungen enthalten nur Chiffretext, der Schlüssel liegt nur im Speicher des offenen Tabs. Ein vergessenes Master-Passwort lässt sich **nicht** zurücksetzen – dann bleibt nur, den Tresor zu löschen und neu anzulegen
@@ -76,6 +78,7 @@ Umgebungsvariablen des Dienstes `portal`:
 | `ADDRESS_HEADER` | – | `CF-Connecting-IP`, damit die Bremse die echte IP sieht |
 | `APP_SECRET` | – | optional statt `/data/.schluessel`, dann in Webseite und Portal gleich |
 | `PORTAL_JOBS` | – | `aus` schaltet die Hintergrunddienste ab (nur für Tests) |
+| `ANDROID_CERT_SHA256` | – | weitere Fingerabdrücke für die Android-App, z. B. von Google Play (mit Komma) |
 
 Jeder Push auf `main` baut `ghcr.io/mstreicher98/astronox-portal:latest`. Das Paket ist öffentlich, Portainer braucht dafür keinen Registry-Zugang. Sollte GitHub es privat anlegen: github.com/mstreicher98?tab=packages → `astronox-portal` → Package settings → „Change visibility“ → public.
 
@@ -91,6 +94,14 @@ Jeder Push auf `main` baut `ghcr.io/mstreicher98/astronox-portal:latest`. Das Pa
 ### Push aufs Handy
 
 Einstellungen → Benachrichtigungen → „Auf diesem Gerät einschalten“. Am iPhone funktioniert Push nur, wenn das Portal über Safari → Teilen → „Zum Home-Bildschirm“ installiert wurde.
+
+### Android-App
+
+`android/` ist eine Trusted Web Activity (mit [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap) erzeugt): das Portal im Vollbild als echte App, Push über die Benachrichtigungen der App, Passkeys wie in Chrome. Der Workflow `android.yml` baut sie bei Änderungen in `android/` und legt `astronox-portal.apk` (zum Installieren) und `.aab` (für Google Play) als Release **android** ab.
+
+- Einmalig die Secrets `ANDROID_KEYSTORE` (Signaturschlüssel, base64) und `ANDROID_KEYSTORE_PASSWORD` anlegen. Der Schlüssel liegt **nicht** im Repo und muss immer derselbe bleiben – sonst lassen sich Updates nicht installieren
+- `/.well-known/assetlinks.json` bestätigt Android, dass die App zum Portal gehört (Fingerabdruck des Schlüssels in `src/routes/.well-known/assetlinks.json/+server.ts`). Nur dann gibt es keine Adressleiste. In Google Play signiert Google neu – dessen Fingerabdruck dann über `ANDROID_CERT_SHA256` ergänzen
+- Neue Version: in `android/` etwas ändern oder den Workflow von Hand starten; die Versionsnummer kommt aus der Build-Nummer
 
 ## Rechnungen – gut zu wissen
 

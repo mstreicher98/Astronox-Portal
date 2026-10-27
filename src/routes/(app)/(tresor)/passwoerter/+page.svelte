@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Copy, ExternalLink, Eye, EyeOff, KeyRound, Lock, Pencil, Plus, Search, ShieldCheck, Star, Trash2, UserRound } from '@lucide/svelte';
+	import { Copy, ExternalLink, Eye, EyeOff, Fingerprint, KeyRound, Lock, Pencil, Plus, Search, ShieldCheck, Star, Trash2, UserRound } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { initials, relative } from '$lib/shared/format';
@@ -43,6 +43,7 @@
 			<p class="lead">{vault.items.length} {vault.items.length === 1 ? 'Eintrag' : 'Einträge'} · sperrt sich nach {LOCK_MINUTES} Minuten ohne Aktivität</p>
 		</div>
 		<div class="actions">
+			<button class="btn quiet sm" type="button" onclick={vault.openBiometric}><Fingerprint size={15} /> Fingerabdruck</button>
 			<button class="btn quiet sm" type="button" onclick={vault.openMaster}><KeyRound size={15} /> Master-Passwort</button>
 			<button class="btn ghost sm" type="button" onclick={() => tresor.lock()}><Lock size={15} /> Sperren</button>
 			<button class="btn" type="button" onclick={() => vault.edit(null)}><Plus size={16} /> Eintrag</button>
