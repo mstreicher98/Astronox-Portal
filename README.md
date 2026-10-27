@@ -18,6 +18,7 @@ Internes Portal von Astronox Development: Webseite bearbeiten, Kunden verwalten,
 | **Hosting & Wartung** | Erreichbarkeit der Kundenseiten (Prüfung alle paar Minuten, Zertifikat), Verträge, Domains mit Ablaufdatum |
 | **Webseite** | alle Texte, Leistungen, Ablauf, Referenzen mit Bildern, Pakete & Preise, Über mich mit Foto, Impressum, Datenschutz – als Entwurf mit Live-Vorschau (Handy/Tablet/Desktop), dann veröffentlichen. Besucherstatistik ohne Cookies |
 | **Passwörter** | persönlicher Passwort-Tresor: Titel, Benutzer, Passwort, mehrere Links, eigene Felder (PIN, Kundennummer …), Notizen, Kategorien und Favoriten, Suche, Passwort-Generator. Verschlüsselt im Browser mit einem eigenen Master-Passwort, sperrt sich nach 15 Minuten ohne Aktivität |
+| **Authenticator** | 2FA-Codes (TOTP) wie Google oder Microsoft Authenticator, mit Countdown, Klick kopiert. Konten per QR-Code (Kamera, Bild oder Screenshot mit Strg+V), Schlüssel oder otpauth-Link; Export aus Google Authenticator übernimmt alle Konten auf einmal. Liegt im selben Tresor wie die Passwörter |
 | **Einstellungen** | Briefkopf und Belege, buchbare Zeiten, Auswahl der Projektanfrage, SMTP/IMAP (mit Passwort oder Microsoft 365), E-Mail-Texte (auch die automatischen Mails der Webseite, mit Vorschau), Checklisten, Push aufs Handy, Sicherheit, Sicherungen |
 
 Neue Projektanfragen und Terminbuchungen der Webseite werden alle 15 Sekunden abgeholt: Kunde (per E-Mail-Adresse erkannt oder neu) und Projekt erscheinen in der Pipeline, dazu Glocke und Push aufs Handy.
@@ -46,7 +47,7 @@ Die Webseite muss lokal einmal gelaufen sein (sie legt ihre Tabellen an). Beim e
 - Ein Konto, Anmeldung mit Passwort (mind. 12 Zeichen, scrypt) **und** Code aus einer Authenticator-App (Pflicht). Zehn Notfallcodes beim Einrichten
 - Sitzungen 30 Tage, im Cookie nur ein Zufallswert; Bremse gegen Durchprobieren (IP und Konto)
 - Zugangsdaten, SMTP/IMAP-Passwörter, der Schlüssel der Microsoft-365-App und der 2FA-Schlüssel liegen AES-256-GCM-verschlüsselt in der Datenbank. Schlüssel: `/data/.schluessel` (oder `APP_SECRET`)
-- Passwort-Tresor ohne Mitlesen: der Browser leitet aus dem Master-Passwort einen Schlüssel ab (PBKDF2-SHA-256, 600.000 Runden) und verschlüsselt jeden Eintrag mit AES-256-GCM. Server und Sicherungen enthalten nur Chiffretext, der Schlüssel liegt nur im Speicher des offenen Tabs. Ein vergessenes Master-Passwort lässt sich **nicht** zurücksetzen – dann bleibt nur, den Tresor zu löschen und neu anzulegen
+- Passwort-Tresor ohne Mitlesen: der Browser leitet aus dem Master-Passwort einen Schlüssel ab (PBKDF2-SHA-256, 600.000 Runden) und verschlüsselt jeden Eintrag mit AES-256-GCM – auch die Schlüssel des Authenticators. Server und Sicherungen enthalten nur Chiffretext, der Schlüssel liegt nur im Speicher des offenen Tabs. Ein vergessenes Master-Passwort lässt sich **nicht** zurücksetzen – dann bleibt nur, den Tresor zu löschen und neu anzulegen
 - Strenge Content-Security-Policy, HTML-Mails nur in einer Sandbox ohne nachgeladene Bilder, hochgeladene Dateien werden nie als Seite ausgeführt
 - Das Repository ist öffentlich – es enthält keine Zugangsdaten. Alles Geheime steht in Portainer oder verschlüsselt in der Datenbank
 

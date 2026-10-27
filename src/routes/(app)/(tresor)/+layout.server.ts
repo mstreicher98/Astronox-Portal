@@ -1,10 +1,10 @@
 import { asc, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { vaultItems, vaults } from '$lib/server/db/schema';
-import type { PageServerLoad } from './$types';
+import type { LayoutServerLoad } from './$types';
 
-/** Nur Chiffretext – entschlüsselt wird im Browser */
-export const load: PageServerLoad = async ({ locals }) => {
+/** Passwörter und Authenticator teilen sich den Tresor – nur Chiffretext, entschlüsselt wird im Browser */
+export const load: LayoutServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const [vault] = await db.select().from(vaults).where(eq(vaults.userId, userId));
 	const items = vault

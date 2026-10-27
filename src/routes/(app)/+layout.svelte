@@ -17,6 +17,7 @@
 		Search,
 		Server,
 		Settings,
+		ShieldCheck,
 		SquareKanban,
 		Timer,
 		Users,
@@ -75,6 +76,7 @@
 		{
 			items: [
 				{ href: '/passwoerter', label: 'Passwörter', icon: KeyRound },
+				{ href: '/authenticator', label: 'Authenticator', icon: ShieldCheck },
 				{ href: '/einstellungen', label: 'Einstellungen', icon: Settings }
 			]
 		}

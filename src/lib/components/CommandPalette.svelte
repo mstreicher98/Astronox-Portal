@@ -21,6 +21,7 @@
 		{ kind: 'aktion', title: 'Neue Ausgabe', href: '/einnahmen-ausgaben?tab=buchungen&neu=ausgabe' },
 		{ kind: 'aktion', title: 'Neue Einnahme', href: '/einnahmen-ausgaben?tab=buchungen&neu=einnahme' },
 		{ kind: 'aktion', title: 'Neues Passwort', href: '/passwoerter?neu=1' },
+		{ kind: 'aktion', title: 'Neues 2FA-Konto', href: '/authenticator?neu=1' },
 		{ kind: 'seite', title: 'Cockpit', href: '/' },
 		{ kind: 'seite', title: 'Pipeline', href: '/pipeline' },
 		{ kind: 'seite', title: 'Projekte', href: '/projekte' },
@@ -37,6 +38,7 @@
 		{ kind: 'seite', title: 'Webseite bearbeiten', href: '/webseite' },
 		{ kind: 'seite', title: 'Besucherstatistik', href: '/webseite/statistik' },
 		{ kind: 'seite', title: 'Passwörter', href: '/passwoerter' },
+		{ kind: 'seite', title: 'Authenticator', href: '/authenticator' },
 		{ kind: 'seite', title: 'Einstellungen', href: '/einstellungen' }
 	];
 

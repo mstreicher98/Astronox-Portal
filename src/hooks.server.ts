@@ -66,7 +66,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (csp) response.headers.set('content-security-policy', `${csp}; frame-src 'self' ${websiteOrigin()}`);
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'same-origin');
-	response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), interest-cohort=()');
+	response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), interest-cohort=()');
 	response.headers.set('X-Robots-Tag', 'noindex, nofollow');
 	if (secure) response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 	if (!response.headers.has('Cache-Control') && !path.startsWith('/_app/immutable/')) response.headers.set('Cache-Control', 'private, no-store');

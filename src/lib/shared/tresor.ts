@@ -4,6 +4,8 @@
  * ein JSON mit AES-256-GCM (eigener Zufalls-IV). Web Crypto – läuft genauso in Node (Tests).
  */
 
+import { cleanOtp, type Otp } from './otp';
+
 /** Empfehlung von OWASP für PBKDF2-HMAC-SHA-256 */
 export const ITERATIONS = 600_000;
 export const MIN_MASTER = 12;
@@ -30,9 +32,11 @@ export interface VaultEntry {
 	category: string;
 	favorite: boolean;
 	fields: VaultField[];
+	/** Schlüssel für den Authenticator (2FA-Codes) */
+	otp: Otp | null;
 }
 
-export const emptyEntry = (): VaultEntry => ({ title: '', username: '', password: '', urls: [], notes: '', category: '', favorite: false, fields: [] });
+export const emptyEntry = (): VaultEntry => ({ title: '', username: '', password: '', urls: [], notes: '', category: '', favorite: false, fields: [], otp: null });
 
 /** Fehlende Felder ergänzen – so bleiben auch ältere Einträge lesbar */
 export function normalize(e: Partial<VaultEntry>): VaultEntry {
@@ -45,7 +49,8 @@ export function normalize(e: Partial<VaultEntry>): VaultEntry {
 		notes: str(e.notes),
 		category: str(e.category),
 		favorite: e.favorite === true,
-		fields: Array.isArray(e.fields) ? e.fields.map((f) => ({ label: str(f?.label), value: str(f?.value), secret: f?.secret === true })) : []
+		fields: Array.isArray(e.fields) ? e.fields.map((f) => ({ label: str(f?.label), value: str(f?.value), secret: f?.secret === true })) : [],
+		otp: cleanOtp(e.otp)
 	};
 }
 
@@ -59,7 +64,8 @@ export function tidy(e: VaultEntry): VaultEntry {
 		notes: e.notes.trim(),
 		category: e.category.trim(),
 		favorite: e.favorite,
-		fields: e.fields.map((f) => ({ label: f.label.trim(), value: f.value, secret: f.secret })).filter((f) => f.label || f.value)
+		fields: e.fields.map((f) => ({ label: f.label.trim(), value: f.value, secret: f.secret })).filter((f) => f.label || f.value),
+		otp: cleanOtp(e.otp)
 	};
 }
 
