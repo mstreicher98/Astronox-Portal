@@ -3,9 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { checkSecondFactor, clearPending, createSession, failedAttempt, getPending, resetAttempts, setPending, tooManyAttempts, verifyPassword } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
+import { safeTarget } from '$lib/server/target';
 import type { Actions, PageServerLoad } from './$types';
-
-const safeTarget = (t: string | null) => (t && t.startsWith('/') && !t.startsWith('//') ? t : '/');
 
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (locals.user?.totpEnabled) redirect(303, safeTarget(url.searchParams.get('ziel')));
